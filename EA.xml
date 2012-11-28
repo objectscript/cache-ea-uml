@@ -1,0 +1,1981 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Export generator="Cache" version="25">
+<Project name="EA02">
+  <Items>
+    <ProjectItem name="csp/sys/ImportEA.csp" type="CSP"></ProjectItem>
+    <ProjectItem name="csp/sys/ImportEA2.csp" type="CSP"></ProjectItem>
+    <ProjectItem name="csp/sys/ImportFinish.csp" type="CSP"></ProjectItem>
+    <ProjectItem name="csp/sys/ExportEA.csp" type="CSP"></ProjectItem>
+    <ProjectItem name="csp/sys/ExportEA2.csp" type="CSP"></ProjectItem>
+    <ProjectItem name="csp/sys/ExportFinish.csp" type="CSP"></ProjectItem>
+    <ProjectItem name="UML" type="PKG"></ProjectItem>
+  </Items>
+</Project>
+
+
+
+
+<Class name="UML.ReaderEA">
+<Description>
+Этот класс позволяет импортировать XML-файл в Cache,экспортированный из UML-редактора Enterprise Architect </Description>
+<TimeCreated>62700,67527.557425</TimeCreated>
+
+<Method name="ImportPar">
+<Description>
+Метод позволяет пользователю импортировать файл без параметров. Пользователю будет предложено ввести полный путь
+к XML-файлу в терминале, а также предоставляется возможность выбора пакета или использовать по умолчанию.</Description>
+<ClassMethod>1</ClassMethod>
+<ReturnType>%Status</ReturnType>
+<Implementation><![CDATA[
+ #include %occStatus
+ #dim sc as %Status
+ s sc=$$$OK
+ #dim cl as %Dictionary.ClassDefinition
+ set package = ""
+ read "Input name file: ", filename,!  //ВВОД НАЗВАНИЯ ФАЙЛА
+ set per=0
+ read "Enter the name of the package? 		Y   ", packageValue,!
+ if (packageValue="Y")||(packageValue="y"){ 
+   read "Input name package: ", package
+   set per=1
+ }
+ set namespace = $znspace
+ set sc = ##class(UML.ReaderEA).Import(filename,package="",namespace)
+ q sc
+]]></Implementation>
+</Method>
+
+<Method name="Import">
+<Description>
+Метод предоставляет импортировать файл с параметрами. Первым параметром является полный путь к файлу; 
+второй - название пакета, который можно не указывать.</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec>filename,package="",namespace</FormalSpec>
+<ReturnType>%Status</ReturnType>
+<Implementation><![CDATA[
+   #include %occStatus
+   #dim sc as %Status
+   zn namespace
+   if package '= "" {set per=1, package2 = package}
+   else {set per=0}
+   Set sc = ##class(%XML.TextReader).ParseFile(filename,.reader)
+   
+   #dim reader as %XML.TextReader
+   set iPackage=1, iMethodArg=1, jPackage=0
+    If ($$$ISOK(sc))
+    {
+      While (reader.Read())
+      { 
+        If (reader.NodeType = "element")
+        {
+	      //СЧИТЫВАЕМ ВСЕ ПАКЕТЫ
+	      //namePackage - массив имен пакетов, использую для соблюдения подпакетов
+	      //packageName - массив имен пакетов, использую для определения пакета класса
+	      If (reader.Name="packagedElement")&&(reader.HasAttributes)
+	      {
+		    do reader.MoveToAttributeName("type")
+		    If reader.Value = "uml:Package"
+		    {
+			  set jPackage = jPackage + 1
+		      do reader.MoveToAttributeName("name")
+		      set namePackage(jPackage) = reader.Value
+		      do reader.MoveToAttributeName("id")
+		      set idPackage(jPackage) = reader.Value
+		    }
+	      }
+	      //СЧИТАЕМ НАЗВАНИЯ ПАРАМЕТРОВ МЕТОДА
+          If (reader.Name="ownedParameter")&&(reader.HasAttributes)  
+          {
+	        do reader.MoveToAttributeName("name")
+	          if reader.Value'="return"{
+	          set nameMethodArg(iMethodArg)=reader.Value
+	          do reader.MoveToAttributeName("id")
+	          set idMethodArg(iMethodArg)=reader.Value
+	          do reader.MoveToAttributeName("direction")
+	          set dirMethodArg(iMethodArg)=reader.Value
+	          set iMethodArg=iMethodArg+1
+	        }
+	      }
+          
+          //
+          If (reader.Name="element")&&(reader.HasAttributes)
+          {
+	        do reader.MoveToAttributeName("type")
+	        
+	        // СЧИТЫВАЕМ НАЗВНИЕ ПАКЕТА
+	        if $find(reader.Value,"Package")  
+	        {
+		      do reader.MoveToAttributeName("name")
+		      set package = $$delSim(reader.Value)
+		      do reader.MoveToAttributeName("idref")
+		      set idPackage = reader.Value
+		      set Dep=reader.Depth
+			  while (reader.Read()&&(reader.Depth'<Dep)){
+				if (reader.Name="model")&&(reader.HasAttributes){  
+				  do reader.MoveToAttributeName("package")
+				  for i=1:1:jPackage {
+				  	if reader.Value = idPackage(i){
+					  If $find(package,".") {set package = $$deletePackage(package)}
+					  set package = $$delSim(namePackage(i))_"."_package
+				  	  for j=1:1:jPackage {
+				  	  	if idPackage = idPackage(j){
+					  	  set namePackage(j) = package
+				  	  	}
+				  	  }
+				  	}
+				  }
+				}
+			  }
+			  set package3 = package
+			  if per=1 {set package = $$delSim(package2)_"."_package}
+		    }
+		    
+		    
+		    //СЧИТЫВАЕМ КЛАССЫ
+            elseif $find(reader.Value,"Class")
+            { 
+	          do reader.MoveToAttributeName("name")
+	    	  set readvalue=$$delSim(reader.Value)
+	    	  If ($$deleteClass(readvalue) = package3) || $find(package3,$$deleteClass(readvalue)) {set readvalue = $$deletePackage(readvalue)}
+	          if ##class(%Dictionary.ClassDefinition).%ExistsId(package_"."_readvalue){
+	            set cl=##class(%Dictionary.ClassDefinition).%OpenId(package_"."_readvalue)
+	          }
+		      else {
+		      	set cl=##class(%Dictionary.ClassDefinition).%New() //иначе создадим
+		      	set cl.Name=package_"."_readvalue
+		      }
+		      
+			  set Val=package_"."_readvalue		//имя класса прегодится для атрибутов и операций, при проверки их существования
+		      ///// создаем 2 массива, 1-ID текущего класса, 2-название пакета текущего
+		      If (reader.MoveToAttributeName("idref")) set idClass(iPackage)=reader.Value 
+			  set packageName(iPackage)=package, iPackage=iPackage+1
+			  /////
+			  set cl.ProcedureBlock=1
+		      set cl.Super=""
+			  
+			  //Считываем атрибуты и операции, а также некоторые атрибуты класса
+	          set Dep=reader.Depth
+			  while (reader.Read()&&(reader.Depth'<Dep)){
+			  //СЧИТЫВАЕМ ПАРАМЕТРЫ
+			  if (reader.Name="parameter")&&(reader.HasAttributes){
+			  	do reader.MoveToAttributeName("name")
+			  	set readvalue=$$delSim(reader.Value)
+			  	if ##class(%Dictionary.ParameterDefinition).%ExistsId(Val_"||"_readvalue){
+				  do ##class(%Dictionary.ParameterDefinition).%DeleteId(Val_"||"_readvalue)
+			  	}
+			  	#dim par as %Dictionary.ParameterDefinition	
+		  	  	set par=##class(%Dictionary.ParameterDefinition).%New()
+			  	set par.Name=readvalue
+			  	if reader.MoveToAttributeName("type") {set par.Type=reader.Value}
+			  	if reader.MoveToAttributeName("default") {set par.Default=reader.Value}
+			  	do cl.Parameters.Insert(par)
+			  }
+					
+			  //Cчитываем атрибута класса
+			  if (reader.Name="properties")&&(reader.HasAttributes){
+			    if (reader.MoveToAttributeName("documentation")){
+				  if $find(reader.Value,"<b>"){
+					set cl.Description=$$AsciiRus2($Extract(reader.Value,$Find(reader.Value,"<b>",0),$Length(reader.Value)-4))
+				  }
+				  else {set cl.Description=$$AsciiRus2(reader.Value)}
+			    }
+			    do reader.MoveToAttributeName("isLeaf")
+			    If (reader.Value="true") {set cl.Final=1}
+			    do reader.MoveToAttributeName("isAbstract")
+			    If (reader.Value="true") {set cl.Abstract=1}
+			  }
+			  
+			  if (reader.Name="tags"){
+			  	set Dep5=reader.Depth
+			  	while (reader.Read()&&(reader.Depth'<Dep5)){  	 
+			  	  if (reader.Name="tag")&&(reader.HasAttributes){
+				  	do reader.MoveToAttributeName("name")
+			  	  	if $$tran(reader.Value)="extends" {
+				  	  do reader.MoveToAttributeName("value")
+				  	  if cl.Super="" {set cl.Super=reader.Value}
+				  	  else {set cl.Super=cl.Super_","_reader.Value}
+			  	  	}
+			  	  	if $$tran(reader.Value)="include" {
+				  	  do reader.MoveToAttributeName("value")
+				  	  set cl.IncludeCode=reader.Value 
+			  	  	}
+			  	  }
+			  	}
+			  }
+			  //СЧИТЫВАЕМ ПАРАМЕТРЫ И PERSISTENT
+			  if (reader.Name="extendedProperties")&&(reader.HasAttributes){
+				if reader.MoveToAttributeName("persistence"){
+				  if $$tran(reader.Value)="persistent" {
+					if cl.Super="" {set cl.Super="%Persistent"}
+				  	else {set cl.Super="%Persistent,"_cl.Super} 
+				  	set ok=cl.%Save()
+				  }
+				}
+			  	if reader.MoveToAttributeName("parameters"){
+				  for i=1:3 {
+				  	if $piece(reader.Value,";",i)="" q
+				  	set readvalue=$$delSim(reader.Value)
+				  	if ##class(%Dictionary.ParameterDefinition).%ExistsId(Val_"||"_readvalue){
+				  		do ##class(%Dictionary.ParameterDefinition).%DeleteId(Val_"||"_readvalue)
+			  		}
+					set par=##class(%Dictionary.ParameterDefinition).%New()
+					set par.Name=$piece($piece(reader.Value,";",i),"=",2)
+					set par.Type=$piece($piece(reader.Value,";",i+1),"=",2)
+					set par.Default=$piece($piece(reader.Value,";",i+2),"=",2)
+					do cl.Parameters.Insert(par)
+				  }
+			  	}
+			  }
+			  //СЧИТЫВАЕМ АТРИБУТЫ
+			  if (reader.Name="attribute")&&(reader.HasAttributes){
+			    do reader.MoveToAttributeName("name")
+			  	set readvalue=$$delSim(reader.Value)	
+			  	if ##class(%Dictionary.PropertyDefinition).%ExistsId(Val_"||"_readvalue){
+				  do ##class(%Dictionary.PropertyDefinition).%DeleteId(Val_"||"_readvalue)
+			  	}
+				#dim prop as %Dictionary.PropertyDefinition	//////Почитать
+				set prop=##class(%Dictionary.PropertyDefinition).%New()
+				if (reader.MoveToAttributeName("name")) set prop.Name=readvalue
+				do reader.MoveToAttributeName("scope") if $$tran(reader.Value)="private" set prop.Private=1
+				set prop.parent=cl
+				do cl.Properties.Insert(prop)
+				
+				//
+				set Dep2=reader.Depth
+				while (reader.Read()&&(reader.Depth'<Dep2)){
+				  //начальное значение атрибута
+			  	  if (reader.Name="initial")&&(reader.HasAttributes){
+			  		if reader.MoveToAttributeName("body") set prop.InitialExpression=reader.Value
+			  	  }
+			  	  //коментарий атрибута
+				  if (reader.Name="documentation")&&(reader.HasAttributes){
+				  if reader.MoveToAttributeName("value") set prop.Description=$$AsciiRus2(reader.Value)
+				  }
+				  //определение типа, коллекции 
+				  if (reader.Name="properties")&&(reader.HasAttributes){
+					do reader.MoveToAttributeName("type")
+					set prop.Type=$Case($$tran(reader.Value),"boolean":"%Boolean","string":"%String","short":"%Binary","long":"%Binary","byte":"%Binary","char":"%String","double":"%Float","float":"%Float","int":"%Integer","integer":"%Integer",:reader.Value)
+				    do reader.MoveToAttributeName("collection")
+				    if $$tran(reader.Value)="true" {
+					  while reader.Read(){
+					  	if (reader.Name="containment"){
+						  do reader.MoveToAttributeName("container")
+						  if ($$tran(reader.Value)="array")||($$tran(reader.Value)="list"){set prop.Collection=$$tran(reader.Value)}
+					  	  else {w "Тип коллекции неправильно задан!В CACHE существует 2 типа коллекций: array and list!",!, reader.Value,!}
+					  	q
+					  	}
+					  }				      
+				    }
+				  }
+				  //задание Transient
+				  if (reader.Name="styleex")&&(reader.HasAttributes){
+				    if reader.MoveToAttributeName("value"){
+					  if $Find(reader.Value,"volatile=",0)'=0 set prop.Transient=$Extract(reader.Value,$Find(reader.Value,"volatile=",0),$Length(reader.Value)-1)
+				    }
+				  }
+				  //задание Final и параметров атрибута
+				  if (reader.Name="tags"){
+			  		set Dep5=reader.Depth
+			  		set iparam=0
+			  		k propParms
+			  		while (reader.Read()&&(reader.Depth'<Dep5)){ 	 
+			  	  	  if (reader.Name="tag")&&(reader.HasAttributes){
+				  		do reader.MoveToAttributeName("name")
+			  	  		if $$tran(reader.Value)="final" {
+				  	  	  set prop.Final=1
+			  	  		}
+			  	  		if $$tran(reader.Value)="required" {
+				  	  	  set prop.Required = 1
+			  	  		}
+			  	  		if $$tran(reader.Value)="calculated" {
+				  	  	  set prop.Calculated = 1
+			  	  		}
+			  	  		if $$tran(reader.Value)="identity" {
+				  	  	  set prop.Identity = 1
+			  	  		}
+			  	  		if $$tran(reader.Value)="internal" {
+				  	  	  set prop.Internal = 1
+			  	  		}
+			  	  		if $$tran(reader.Value)="multidimensional" {
+				  	  	  set prop.MultiDimensional = 1
+			  	  		}
+			  	  		if $$tran(reader.Value)="sqlcomputed" {
+				  	  	  set prop.SqlComputed = 1
+			  	  		}
+			  	  		if $$tran(reader.Value)="clientname" {
+				  	  	  do reader.MoveToAttributeName("value")
+				  	  	  set prop.ClientName = $$AsciiRus(reader.Value)
+			  	  		}
+			  	  		if $$tran(reader.Value)="sqlcolumnnumber" {
+				  	  	  do reader.MoveToAttributeName("value")
+				  	  	  set prop.SqlColumnNumber = $$AsciiRus(reader.Value)
+			  	  		}
+			  	  		if $$tran(reader.Value)="sqlcomputecode" {
+				  	  	  do reader.MoveToAttributeName("value")
+				  	  	  set prop.SqlComputeCode = $$AsciiRus(reader.Value)
+			  	  		}
+			  	  		if $$tran(reader.Value)="sqlcomputeonchange" {
+				  	  	  do reader.MoveToAttributeName("value")
+				  	  	  set prop.SqlComputeOnChange = $$AsciiRus(reader.Value)
+			  	  		}
+			  	  		if $$tran(reader.Value)="sqlfieldname" {
+				  	  	  do reader.MoveToAttributeName("value")
+				  	  	  set prop.SqlFieldName = $$AsciiRus(reader.Value)
+			  	  		}
+			  	  		if $$tran(reader.Value)="sqllistdelimiter" {
+				  	  	  do reader.MoveToAttributeName("value")
+				  	  	  set prop.SqlListDelimiter = $$AsciiRus(reader.Value)
+			  	  		}
+			  	  		if $$tran(reader.Value)="sqllisttype" {
+				  	  	  do reader.MoveToAttributeName("value")
+				  	  	  set prop.SqlListType = $$AsciiRus(reader.Value)
+			  	  		}
+			  	  		if $$tran(reader.Value)="serveronly" {
+				  	  	  do reader.MoveToAttributeName("value")
+				  	  	  set prop.ServerOnly = $$AsciiRus(reader.Value)
+			  	  		}
+			  	  		if $$tran(reader.Value)="sqlcolumnnumber" {
+				  	  	  do reader.MoveToAttributeName("value")
+				  	  	  set prop.SqlColumnNumber = $$AsciiRus(reader.Value)
+			  	  		}	
+			  	  		if $$tran(reader.Value)="parameter"{
+				  	  	  set iparam=1
+				  	  	  do reader.MoveToAttributeName("value")
+			  	  		  set propParms($piece(reader.Value,"=",1))=$piece(reader.Value,"=",2)
+			  	  		}
+			  	  	  }
+			  		}
+			  		if iparam=1 {
+			  		  Set parm=$order(propParms(""))
+ 					  While parm'="" {
+				  		Set value=propParms(parm)
+				  		If $extract(value)="""" Set value=$extract(value,2,*-1)
+				  		Do prop.Parameters.SetAt(value,parm)
+						Set parm=$order(propParms(parm))
+ 					  }
+				  	}
+			  	  }
+				}
+			  }
+			  //СЧИТЫВАЕМ МЕТОДЫ
+			  if $find(reader.Name,"operation")&&(reader.HasAttributes){
+				do reader.MoveToAttributeName("name")
+				set readvalue=$$delSim(reader.Value)
+				if ##class(%Dictionary.MethodDefinition).%ExistsId(Val_"||"_readvalue){
+				  set method = ##class(%Dictionary.MethodDefinition).%OpenId(Val_"||"_readvalue)
+				}
+				else {
+				  set method=##class(%Dictionary.MethodDefinition).%New()
+				  if (reader.MoveToAttributeName("name")) set method.Name=readvalue
+				}
+				  If (reader.MoveToAttributeName("id")) set method.Description=$$AsciiRus2(reader.Value)
+				  do reader.MoveToAttributeName("scope") if $$tran(reader.Value)="private" set method.Private=1
+				  set method.parent=cl
+				  set method.FormalSpec = ""
+				  set Dep2=reader.Depth
+					while (reader.Read()&&(reader.Depth'<Dep2)){
+				  	  //считываем тип метода
+				  	  if (reader.Name="type")&&(reader.HasAttributes){
+					  do reader.MoveToAttributeName("type")
+						set method.ReturnType=$Case($$tran(reader.Value),"boolean":"%Boolean","string":"%String","short":"%Binary","long":"%Binary","byte":"%Binary","char":"%String","double":"%Float","float":"%Float","int":"%Integer","integer":"%Integer","void":"",:reader.Value)
+				  	  }
+				  	  //определение статического метода
+				      if reader.MoveToAttributeName("static"){
+				      	 if (reader.Value)="true" set method.ClassMethod=1
+				      }
+				  	  //определение абстрактности метода
+				      if reader.MoveToAttributeName("isAbstract"){
+					     if reader.Value="true" set method.Abstract=1
+				      }
+				      //код метода
+				      if (reader.Name="code")&&(reader.HasAttributes){
+				  		if reader.MoveToAttributeName("value") do method.Implementation.Write($$AsciiRus(reader.Value))
+				  	  }
+				      //комментарии метода
+				      if (reader.Name="documentation")&&(reader.HasAttributes){
+				  		if reader.MoveToAttributeName("value") set method.Description=$$AsciiRus2(reader.Value)
+				  	  }
+				  	  //задание Final, NotInheritable, ClassMethod, WebMethod, ZenMethod атрибута
+				  	  if (reader.Name="tags"){
+			  			set Dep5=reader.Depth
+			  			while (reader.Read()&&(reader.Depth'<Dep5)){  	 
+			  	  	  	  if (reader.Name="tag")&&(reader.HasAttributes){
+				  			do reader.MoveToAttributeName("name")
+			  	  			if $$tran(reader.Value)="final" {
+				  	  	 	  set method.Final=1
+			  	  		 	}
+			  	  		 	if $$tran(reader.Value)="notinheritable" {
+				  	  	 	  set method.NotInheritable=1
+			  	  		 	}
+			  	  		 	if $$tran(reader.Value)="clientmethod" {
+				  	  	 	  set method.ClientMethod=1
+			  	  		 	}
+			  	  		 	if $$tran(reader.Value)="clientname" {
+			  	  	  	  	  do reader.MoveToAttributeName("value")
+				  	  	  	  set method.ClientName = $$AsciiRus(reader.Value)
+			  	  	  	  	}
+			  	  	  	  	if $$tran(reader.Value)="codemode" {
+			  	  	  	  	  do reader.MoveToAttributeName("value")
+				  	  	  	  set method.CodeMode = $$AsciiRus(reader.Value)
+			  	  	  	  	}
+			  	  	 		if $$tran(reader.Value)="externalprocname" {
+			  	  	  	  	  do reader.MoveToAttributeName("value")
+				  	  	  	  set method.ExternalProcName = $$AsciiRus(reader.Value)
+			  	  	  	  	}
+			  	  	  	  	if $$tran(reader.Value)="forcegenerate" {
+				  	  	  	  set method.ForceGenerate = 1
+			  	  	  	  	}
+			  	  	  	  	if $$tran(reader.Value)="generateafter" {
+				  	  	  	  do reader.MoveToAttributeName("value")
+				  	  	  	  set method.GenerateAfter = $$AsciiRus(reader.Value)
+			  	  	  	  	}
+			  	  	  	  	if $$tran(reader.Value)="internal" {
+				  	  	  	  set method.Internal = 1
+			  	  	  	  	}
+			  	  	  	  	if $$tran(reader.Value)="language" {
+				  	  	  	  do reader.MoveToAttributeName("value")
+				  	  	  	  set method.Language = $$AsciiRus(reader.Value)
+			  	  	  	  	}
+			  	  	  	  	if $$tran(reader.Value)="nocontext" {
+				  	  	  	  set method.NoContext = 1
+			  	  	  	  	}
+			  	  	  	  	if $$tran(reader.Value)="placeafter" {
+				  	  	  	  do reader.MoveToAttributeName("value")
+				  	  	  	  set method.PlaceAfter = $$AsciiRus(reader.Value)
+			  	  	  	  	}
+			  	  	  	  	if $$tran(reader.Value)="publiclist" {
+				  	  	  	  do reader.MoveToAttributeName("value")
+				  	  	  	  set method.PublicList = $$AsciiRus(reader.Value)
+			  	  	  	  	}
+			  	  	  	  	if $$tran(reader.Value)="returnresultsets" {
+				  	  	  	  set method.ReturnResultsets = 1
+			  	  	  	  	}
+			  	  	  	  	if $$tran(reader.Value)="returntypeparams" {
+				  	  	  	  do reader.MoveToAttributeName("value")
+				  	  	  	  set method.ReturnTypeParams = $$AsciiRus(reader.Value)
+			  	  	  	  	}
+			  	  	  	  	if $$tran(reader.Value)="serveronly" {
+				  	  	  	  set method.ServerOnly = 1
+			  	  	  	  	}
+			  	  	  	  	if $$tran(reader.Value)="soapaction" {
+				  	  	  	  do reader.MoveToAttributeName("value")
+				  	  	  	  set method.SoapAction = $$AsciiRus(reader.Value)
+			  	  	  	  	}
+			  	  	  	  	if $$tran(reader.Value)="soapbindingstyle" {
+				  	  	  	  do reader.MoveToAttributeName("value")
+				  	  	  	  set method.SoapBindingStyle = $$AsciiRus(reader.Value)
+			  	  	  	  	}
+			  	  	  	  	if $$tran(reader.Value)="soapbodyuse" {
+				  	  	  	  do reader.MoveToAttributeName("value")
+				  	  	  	  set method.SoapBodyUse = $$AsciiRus(reader.Value)
+			  	  	  	  	}
+			  	  	  	  	if $$tran(reader.Value)="soapnamespace" {
+				  	  	  	  do reader.MoveToAttributeName("value")
+				  	  	  	  set method.SoapNameSpace = $$AsciiRus(reader.Value)
+			  	  	  	  	}
+			  	  	  	  	if $$tran(reader.Value)="soaptypenamespace" {
+				  	  	  	  do reader.MoveToAttributeName("value")
+				  	  	  	  set method.SoapTypeNameSpace = $$AsciiRus(reader.Value)
+			  	  	  	  	}
+			  	  	  	  	if $$tran(reader.Value)="sqlname" {
+				  	  	  	  do reader.MoveToAttributeName("value")
+				  	  	  	  set method.SqlName = $$AsciiRus(reader.Value)
+			  	  	  	  	}
+			  	  	  	  	if $$tran(reader.Value)="sqlproc" {
+				  	  	  	  set method.SqlProc = 1
+			  	  	  	  	}
+			  	  	  	  	if $$tran(reader.Value)="forcegenerate" {
+				  	  	  	  do reader.MoveToAttributeName("value")
+				  	  	  	  set method.GenerateAfter = $$AsciiRus(reader.Value)
+			  	  	  	  	}
+			  	  		 	if $$tran(reader.Value)="webmethod" {
+				  	  	 	  set method.WebMethod=1
+			  	  		 	}
+			  	  		 	if $$tran(reader.Value)="zenmethod" {
+				  	  	 	  set method.ZenMethod=1
+			  	  		 	}
+			  	  	  	  }
+			  			}
+			  	  	  }
+				      //считываем параметры метода
+				      if (reader.Name="parameter")&&(reader.HasAttributes){
+					    do reader.MoveToAttributeName("idref")
+					    set idperem=reader.Value
+					      for i=1:1:iMethodArg-1{
+				  		  	if idMethodArg(i)=idperem{
+					  		set kindMethodArg=$Case(dirMethodArg(i),"in":"","out":"*","inout":"&","return":"",:"")
+					  		set Dep5=reader.Depth
+					  		set defaultMethodArg=""
+							while (reader.Read()&&(reader.Depth'<Dep5)){
+							  if (reader.Name="properties")&&(reader.HasAttributes){
+								do reader.MoveToAttributeName("type")
+					  			set typeMethodArg=$Case($$tran(reader.Value),"boolean":"%Boolean","string":"%String","short":"%Binary","long":"%Binary","byte":"%Binary","char":"%String","double":"%Float","float":"%Float","int":"%Integer","integer":"%Integer",:reader.Value)
+					  		  }
+					  		  if (reader.Name="Value")&&(reader.HasAttributes){
+								do reader.MoveToAttributeName("body")
+					  			set defaultMethodArg=reader.Value
+					  		  }
+							}
+				  		  	if (method.FormalSpec="")&&(defaultMethodArg=""){set method.FormalSpec=kindMethodArg_nameMethodArg(i)_":"_typeMethodArg} 
+				  		  	elseif method.FormalSpec=""{set method.FormalSpec=kindMethodArg_nameMethodArg(i)_":"_typeMethodArg_"="_defaultMethodArg}
+				  		  	elseif defaultMethodArg=""{set method.FormalSpec=method.FormalSpec_","_kindMethodArg_nameMethodArg(i)_":"_typeMethodArg}
+				  		  	else {set method.FormalSpec=method.FormalSpec_","_kindMethodArg_nameMethodArg(i)_":"_typeMethodArg_"="_defaultMethodArg}
+				  		  	q
+				  		  	}
+						  } 
+				      }
+				  }	
+				 
+				  				
+					do method.%Save()
+			  	}
+			  }		
+			set sc=cl.%Save()
+			If $$$ISERR(sc){
+			  w "Класс ", cl.Name
+			  Do $System.Status.DisplayError(sc)
+			  w !,"_________________________________________________________________________________________________________________________________________________________________________________________________________",!
+			}
+			set CompileObject(cl.Name)=cl.Name
+			} //запись классов завершено
+	        } //проверка элементов как классов завершена
+	       
+	        //СЧИТЫВАЕМ СВЯЗИ
+	        If (reader.Name="connector")&&(reader.HasAttributes){
+		      set Dep3=reader.Depth
+			  while (reader.Read()&&(reader.Depth'<Dep3)){
+				//записываем source
+				if (reader.Name="source")&&(reader.HasAttributes){
+				  if reader.MoveToAttributeName("idref") set idperem=reader.Value
+				  set sourRule=""
+				  while (reader.Read()&&(reader.Depth'<(Dep3+1))){
+					if reader.Name="model"&&(reader.HasAttributes){
+					  set perem=0
+				  	  do reader.MoveToAttributeName("type")
+				  	  if reader.Value="Class"{
+				  	  if reader.MoveToAttributeName("name") set sourName=$$delSim(reader.Value)
+				  	  set perem=1
+				  	  }
+					}
+					if (reader.Name="role")&&(reader.HasAttributes)&&(perem=1){
+					  if reader.MoveToAttributeName("name") set sourRule=reader.Value
+					}
+					if (reader.Name="type")&&(reader.HasAttributes)&&(perem=1){ // если perem=1, то это класс
+					  if reader.MoveToAttributeName("multiplicity") set sourMult=reader.Value
+				  	  if reader.MoveToAttributeName("aggregation") set sourAggr=reader.Value
+					}
+					if (reader.Name="style")&&(reader.HasAttributes)&&(perem=1){
+					  do reader.MoveToAttributeName("value")
+					  set sourNav=$Extract(reader.Value,$Find(reader.Value,"Navigable=",0),$Find(reader.Value,"Navigable=",0)+8)	
+					}
+				  }
+				} //записали source
+				
+				//записываем target
+				if (reader.Name="target")&&(reader.HasAttributes)&&(perem=1){
+				  set targRule = ""
+				  while (reader.Read()&&(reader.Depth'<(Dep3+1))){
+					if reader.Name="model"&&(reader.HasAttributes){
+					  set perem=0
+				  	  do reader.MoveToAttributeName("type")
+				  	  if reader.Value="Class"{
+				  	  if reader.MoveToAttributeName("name") set targName=$$delSim(reader.Value)
+				  	  set perem=1
+				  	  }
+					}
+					if (reader.Name="role")&&(reader.HasAttributes)&&(perem=1){
+					  if reader.MoveToAttributeName("name") set targRule=reader.Value
+					}
+					if (reader.Name="type")&&(reader.HasAttributes)&&(perem=1){ // если perem=1, то это класс
+					  if reader.MoveToAttributeName("multiplicity") set targMult=reader.Value
+				  	  if reader.MoveToAttributeName("aggregation") set targAggr=reader.Value
+					}
+					if (reader.Name="style")&&(reader.HasAttributes)&&(perem=1){
+					  do reader.MoveToAttributeName("value")
+					  set targNav=$Extract(reader.Value,$Find(reader.Value,"Navigable=",0),$Find(reader.Value,"Navigable=",0)+8)	
+					}
+				  }
+				} //записали target
+				// определяем имя связи
+				if (reader.Name="labels")&&(reader.HasAttributes){
+					if reader.MoveToAttributeName("mt") set linkName=reader.Value
+					if reader.MoveToAttributeName("rt") set linkNameT=reader.Value
+					if reader.MoveToAttributeName("lt") set linkNameS=reader.Value
+				}
+				//определяем пакет
+				for i=1:1:iPackage-1{
+				  if idClass(i)=idperem{
+				  set package=packageName(i)
+				  q
+				  }
+				}
+
+				//определяем тип связи
+				if reader.Name="properties"&&(perem=1){
+				do reader.MoveToAttributeName("ea_type")
+				
+				//АССОЦИАЦИЯ
+				//если one-to-one
+				if ($$tran(reader.Value)="association"){
+				if ($$tran(sourNav)="navigable")&&($$tran(targNav)="navigable"){
+				  set sourName = $$deletePackage(sourName)
+				  set targName = $$deletePackage(targName)
+				  set Val = package_"."_sourName
+				  set newProp = 0
+				  set cl=##class(%Dictionary.ClassDefinition).%OpenId(package_"."_sourName)
+				  if targRule = ""{
+				  	if ##class(%Dictionary.PropertyDefinition).%ExistsId(Val_"||"_"link"_targName){
+				  	  set prop = ##class(%Dictionary.PropertyDefinition).%OpenId(Val_"||"_"link"_targName)
+				  	  set newProp = 1
+			  	  	}
+			  	  }
+			  	  else {
+				  	if ##class(%Dictionary.PropertyDefinition).%ExistsId(Val_"||"_targRule){
+				  	  set prop = ##class(%Dictionary.PropertyDefinition).%OpenId(Val_"||"_targRule)
+				  	  set newProp = 1
+				  	}
+				  }
+				  if newProp = 0{
+				  	set prop=##class(%Dictionary.PropertyDefinition).%New()
+				  	if targRule = "" {set prop.Name="link"_targName}
+				  	else {set prop.Name=targRule}
+				  }
+				  set prop.Type=package_"."_targName
+				  set prop.parent=cl
+				  do cl.Properties.Insert(prop)
+				  set ok=cl.%Save()
+				  
+				  set sourName = $$deletePackage(sourName)
+				  set targName = $$deletePackage(targName)
+				  set Val = package_"."_targName
+				  set newProp = 0
+				  set cl=##class(%Dictionary.ClassDefinition).%OpenId(package_"."_targName)
+				  if sourRule = ""{
+				  	if ##class(%Dictionary.PropertyDefinition).%ExistsId(Val_"||"_"link"_sourName){
+				  	  set prop = ##class(%Dictionary.PropertyDefinition).%OpenId(Val_"||"_"link"_sourName)
+				  	  set newProp = 1
+			  	  	}
+			  	  }
+			  	  else {
+				  	if ##class(%Dictionary.PropertyDefinition).%ExistsId(Val_"||"_sourRule){
+				  	  set prop = ##class(%Dictionary.PropertyDefinition).%OpenId(Val_"||"_sourRule)
+				  	  set newProp = 1
+			  	  	}
+				  }
+				  if newProp = 0{
+				  	set prop=##class(%Dictionary.PropertyDefinition).%New()
+				  	if sourRule = "" {set prop.Name="link"_sourName}
+				  	else {set prop.Name=sourRule}
+				  }
+				  set prop.Type=package_"."_sourName
+				  set prop.parent=cl
+				  do cl.Properties.Insert(prop)
+				  set ok=cl.%Save()
+				}
+				
+				//если one-to-many ссылка
+				elseif ($$tran(sourNav)="navigable")&&($$tran(targNav)'="navigable"){
+				  set sourName = $$deletePackage(sourName)
+				  set targName = $$deletePackage(targName)
+				  set Val = package_"."_targName
+				  set newProp = 0									  
+				  set cl=##class(%Dictionary.ClassDefinition).%OpenId(package_"."_targName)
+				  if sourRule = ""{
+				  	if ##class(%Dictionary.PropertyDefinition).%ExistsId(Val_"||"_"link"_sourName){
+				  	  set prop = ##class(%Dictionary.PropertyDefinition).%OpenId(Val_"||"_"link"_sourName)
+				  	  set newProp = 1
+			  	  	}
+			  	  }
+			  	  else {
+				  	if ##class(%Dictionary.PropertyDefinition).%ExistsId(Val_"||"_sourRule){
+				  	  set prop = ##class(%Dictionary.PropertyDefinition).%OpenId(Val_"||"_sourRule)
+				  	  set newProp = 1
+				  	}
+			  	  }
+			  	  if newProp = 0{
+			   	 	set prop=##class(%Dictionary.PropertyDefinition).%New()
+				  	if sourRule = "" {set prop.Name="link"_sourName}
+				  	else {set prop.Name=sourRule}
+			  	  }
+				  set prop.Type=package_"."_sourName
+				  set prop.parent=cl
+				  do cl.Properties.Insert(prop)
+				  set ok=cl.%Save()
+				}
+				elseif ($$tran(sourNav)'="navigable")&&($$tran(targNav)="navigable"){
+				  set sourName = $$deletePackage(sourName)
+				  set targName = $$deletePackage(targName)
+				  set Val = package_"."_sourName
+				  set cl=##class(%Dictionary.ClassDefinition).%OpenId(package_"."_sourName)
+				  set newProp = 0
+				  if targRule = ""{
+				  	if ##class(%Dictionary.PropertyDefinition).%ExistsId(Val_"||"_"link"_targName){
+				  	  set prop = ##class(%Dictionary.PropertyDefinition).%OpenId(Val_"||"_"link"_targName)
+				  	  set newProp = 1
+			  	  	}
+			  	  }
+			  	  else {
+				  	if ##class(%Dictionary.PropertyDefinition).%ExistsId(Val_"||"_targRule){
+				  	  set prop = ##class(%Dictionary.PropertyDefinition).%OpenId(Val_"||"_targRule)
+				  	  set newProp = 1
+				  	}
+				  }
+				  if newProp = 0{
+				  	set prop=##class(%Dictionary.PropertyDefinition).%New()
+				  	if targRule = "" {set prop.Name="link"_targName}
+				  	else {set prop.Name=targRule}
+				  }
+				  set prop.Type=package_"."_targName
+				  set prop.parent=cl
+				  do cl.Properties.Insert(prop)
+				  set ok=cl.%Save()
+				}
+				
+				// если many-to-many 
+				elseif ($$tran(sourNav)='"navigable")&&($$tran(targNav)'="navigable"){
+				w "Между классами: ",package_"."_sourName," и ",package_"."_targName, " связь многие-ко-многим, которая не существует в CACHE",!
+				w !,"_________________________________________________________________________________________________________________________________________________________________________________________________________",!
+				}
+				}
+
+				//НАСЛЕДОВАНИЕ
+				if $$tran(reader.Value)="generalization"{
+				  set sourName = $$deletePackage(sourName)
+				  set targName = $$deletePackage(targName)
+				  set cl=##class(%Dictionary.ClassDefinition).%OpenId(package_"."_sourName)
+				  if cl.Super="" {set cl.Super=package_"."_targName}
+				  else {set cl.Super=cl.Super_","_package_"."_targName}
+				  set ok=cl.%Save()
+				}
+				
+				//АГРЕГАЦИЯ
+				if ($$tran(reader.Value)="aggregation")&&((targAggr="shared")||(sourAggr="shared")){
+				if (sourAggr="shared"){
+					set sourName = $$deletePackage(sourName)
+					set targName = $$deletePackage(targName)
+	 				set cl=##class(%Dictionary.ClassDefinition).%OpenId(package_"."_sourName)
+					set cl2=##class(%Dictionary.ClassDefinition).%OpenId(package_"."_targName)
+					set Val = package_"."_sourName
+					if targRule = ""{
+				  	  if ##class(%Dictionary.PropertyDefinition).%ExistsId(Val_"||"_"My"_targName){
+				  	    do ##class(%Dictionary.PropertyDefinition).%DeleteId(Val_"||"_"My"_targName)
+			  	  	  }
+			  	    }
+			  	  	else {
+				  	  if ##class(%Dictionary.PropertyDefinition).%ExistsId(Val_"||"_targRule){
+				  		do ##class(%Dictionary.PropertyDefinition).%DeleteId(Val_"||"_targRule)
+			  	  	  }
+				  	}
+						
+					set prop=##class(%Dictionary.PropertyDefinition).%New()
+					set prop.Relationship=1
+					if targRule = "" {set prop.Name="My"_targName}
+				  	else {set prop.Name=targRule}
+					set prop.Type=package_"."_targName
+					set prop.Cardinality="many"
+					if sourRule = "" {set prop.Inverse="My"_sourName}
+				  	else {set prop.Inverse=sourRule}
+					do cl.Properties.Insert(prop)
+					
+					set Val = package_"."_targName
+					if sourRule = ""{
+				  	  if ##class(%Dictionary.PropertyDefinition).%ExistsId(Val_"||"_"My"_sourName){
+				  	    do ##class(%Dictionary.PropertyDefinition).%DeleteId(Val_"||"_"My"_sourName)
+			  	  	  }
+			  	    }
+			  	  	else {
+				  	  if ##class(%Dictionary.PropertyDefinition).%ExistsId(Val_"||"_sourRule){
+				  		do ##class(%Dictionary.PropertyDefinition).%DeleteId(Val_"||"_sourRule)
+				  	  }
+			  	  	}  					
+					set prop2=##class(%Dictionary.PropertyDefinition).%New()
+					set prop2.Relationship=1
+					if targRule = "" {set prop2.Name="My"_sourName}
+				  	else {set prop2.Name=sourRule}
+					set prop2.Type=package_"."_sourName
+					set prop2.Cardinality="one"
+					if sourRule = "" {set prop2.Inverse="My"_targName}
+				  	else {set prop2.Inverse=targRule}
+					do cl2.Properties.Insert(prop2)
+					set ok=cl.%Save()
+					set ok=cl2.%Save()
+				  }
+				 elseif (targAggr="shared"){
+					set sourName = $$deletePackage(sourName)
+					set targName = $$deletePackage(targName)	 
+				 	set cl=##class(%Dictionary.ClassDefinition).%OpenId(package_"."_targName)
+					set cl2=##class(%Dictionary.ClassDefinition).%OpenId(package_"."_sourName)
+					set Val = package_"."_targName
+					if sourRule = ""{
+				  	  if ##class(%Dictionary.PropertyDefinition).%ExistsId(Val_"||"_"My"_sourName){
+				  	    do ##class(%Dictionary.PropertyDefinition).%DeleteId(Val_"||"_"My"_sourName)
+			  	  	  }
+			  	    }
+			  	  	else {
+				  	  if ##class(%Dictionary.PropertyDefinition).%ExistsId(Val_"||"_sourRule){
+				  		do ##class(%Dictionary.PropertyDefinition).%DeleteId(Val_"||"_sourRule)
+			  	  	  }
+				  	}						
+					set prop=##class(%Dictionary.PropertyDefinition).%New()
+					set prop.Relationship=1
+					if sourRule = "" {set prop.Name="My"_sourName}
+				  	else {set prop.Name=sourRule}
+					set prop.Type=package_"."_sourName
+					set prop.Cardinality="many"
+					if targRule = "" {set prop.Inverse="My"_targName}
+				  	else {set prop.Inverse=targRule}
+					do cl.Properties.Insert(prop)
+					set Val = package_"."_sourName
+					if targRule = ""{
+				  	  if ##class(%Dictionary.PropertyDefinition).%ExistsId(Val_"||"_"My"_targName){
+				  	    do ##class(%Dictionary.PropertyDefinition).%DeleteId(Val_"||"_"My"_targName)
+			  	  	  }
+			  	    }
+			  	  	else {
+				  	  if ##class(%Dictionary.PropertyDefinition).%ExistsId(Val_"||"_targRule){
+				  		do ##class(%Dictionary.PropertyDefinition).%DeleteId(Val_"||"_targRule)
+			  	  	  }
+				  	}
+					set prop2=##class(%Dictionary.PropertyDefinition).%New()
+					set prop2.Relationship=1
+					if targRule = "" {set prop2.Name="My"_targName}
+				  	else {set prop2.Name=targRule}
+					set prop2.Type=package_"."_targName
+					set prop2.Cardinality="one"
+					if sourRule = "" {set prop2.Inverse="My"_sourName}
+				  	else {set prop2.Inverse=sourRule}
+					do cl2.Properties.Insert(prop2)
+					set ok=cl.%Save()
+					set ok=cl2.%Save()
+				 }
+				}
+				
+				//КОМПОЗИЦИЯ 
+				if ($$tran(reader.Value)="aggregation")&&((targAggr="composite")||(sourAggr="composite")){
+				  if sourAggr="composite"{
+					set sourName = $$deletePackage(sourName)
+					set targName = $$deletePackage(targName)
+					set cl=##class(%Dictionary.ClassDefinition).%OpenId(package_"."_sourName)
+					set cl2=##class(%Dictionary.ClassDefinition).%OpenId(package_"."_targName)
+					set Val = package_"."_sourName
+					if targRule = ""{
+				  	  if ##class(%Dictionary.PropertyDefinition).%ExistsId(Val_"||"_"Child"_targName){
+				  	    do ##class(%Dictionary.PropertyDefinition).%DeleteId(Val_"||"_"Child"_targName)
+			  	  	  }
+			  	    }
+			  	  	else {
+				  	  if ##class(%Dictionary.PropertyDefinition).%ExistsId(Val_"||"_targRule){
+				  		do ##class(%Dictionary.PropertyDefinition).%DeleteId(Val_"||"_targRule)
+			  	  	  }
+				  	}
+					set prop=##class(%Dictionary.PropertyDefinition).%New()
+					set prop.Relationship=1
+					if targRule = "" {set prop.Name="Child"_targName}
+				  	else {set prop.Name=targRule}
+					set prop.Type=package_"."_targName
+					set prop.Cardinality="children"
+					if sourRule = "" {set prop.Inverse="Parent"_sourName}
+				  	else {set prop.Inverse=sourRule}
+					do cl.Properties.Insert(prop)
+					set Val = package_"."_targName
+					if sourRule = ""{
+				  	  if ##class(%Dictionary.PropertyDefinition).%ExistsId(Val_"||"_"Parent"_sourName){
+				  	    do ##class(%Dictionary.PropertyDefinition).%DeleteId(Val_"||"_"Parent"_sourName)
+			  	  	  }	
+			  	    }
+			  	  	else {
+				  	  if ##class(%Dictionary.PropertyDefinition).%ExistsId(Val_"||"_sourRule){
+				  		do ##class(%Dictionary.PropertyDefinition).%DeleteId(Val_"||"_sourRule)
+			  	  	  }
+				  	}				
+					set prop2=##class(%Dictionary.PropertyDefinition).%New()
+					set prop2.Relationship=1					
+					if sourRule = "" {set prop2.Name="Parent"_sourName}
+				  	else {set prop2.Name=sourRule}
+					set prop2.Type=package_"."_sourName
+					set prop2.Cardinality="parent"
+					if targRule = "" {set prop2.Inverse="Child"_targName}
+				  	else {set prop2.Inverse=targRule}
+					do cl2.Properties.Insert(prop2)
+					set ok=cl.%Save()
+					set ok=cl2.%Save()
+				}
+				if targAggr="composite"{
+					set sourName = $$deletePackage(sourName)
+					set targName = $$deletePackage(targName)
+					set cl=##class(%Dictionary.ClassDefinition).%OpenId(package_"."_targName)
+					set cl2=##class(%Dictionary.ClassDefinition).%OpenId(package_"."_sourName)
+					set Val = package_"."_targName
+					if sourRule = ""{
+				  	  if ##class(%Dictionary.PropertyDefinition).%ExistsId(Val_"||"_"Child"_sourName){
+				  	    do ##class(%Dictionary.PropertyDefinition).%DeleteId(Val_"||"_"Child"_sourName)
+			  	  	  }
+			  	    }
+			  	  	else {
+				  	  if ##class(%Dictionary.PropertyDefinition).%ExistsId(Val_"||"_sourRule){
+				  		do ##class(%Dictionary.PropertyDefinition).%DeleteId(Val_"||"_sourRule)
+			  	  	  }
+				  	}	
+					set prop=##class(%Dictionary.PropertyDefinition).%New()
+					set prop.Relationship=1
+					if sourRule = "" {set prop.Name="Child"_sourName}
+				  	else {set prop.Name=sourRule}
+					set prop.Type=package_"."_sourName
+					set prop.Cardinality="children"
+					if targRule = "" {set prop.Inverse="Parent"_targName}
+				  	else {set prop.Inverse=targRule}
+					do cl.Properties.Insert(prop)
+					set Val = package_"."_sourName
+					if targRule = ""{
+				  	  if ##class(%Dictionary.PropertyDefinition).%ExistsId(Val_"||"_"Parent"_targName){
+				  	    do ##class(%Dictionary.PropertyDefinition).%DeleteId(Val_"||"_"Parent"_targName)
+			  	  	  }	
+			  	    }
+			  	  	else {
+				  	  if ##class(%Dictionary.PropertyDefinition).%ExistsId(Val_"||"_targRule){
+				  		do ##class(%Dictionary.PropertyDefinition).%DeleteId(Val_"||"_targRule)
+			  	  	  }
+				  	}
+				
+					set prop2=##class(%Dictionary.PropertyDefinition).%New()
+					set prop2.Relationship=1
+					if targRule = "" {set prop2.Name="Parent"_targName}
+				  	else {set prop2.Name=targRule}
+					set prop2.Type=package_"."_targName
+					set prop2.Cardinality="parent"				
+					if sourRule = "" {set prop2.Inverse="Child"_sourName}
+				  	else {set prop2.Inverse=sourRule}
+					do cl2.Properties.Insert(prop2)
+					set ok=cl.%Save()
+					set ok=cl2.%Save()
+				}
+				}
+				
+			  }
+	        }
+          }
+        }    
+      }    
+      }
+    Set parm=$order(CompileObject(""))
+ 	While parm'="" {
+	 	do $system.OBJ.Compile(CompileObject(parm))
+	 	w "_________________________________________________________________________________________________________________________________________________________________________________________________________"
+		Set parm=$order(CompileObject(parm))
+ 	}
+ 	
+    q sc
+    
+tran(name)
+	q $Tr(name,"ABCDEFGHIJKLMNOPRQSTUVWXYZ","abcdefghijklmnoprqstuvwxyz")
+delSim(str)
+	q $Tr(str," +=_-)(*&^$#@!~,<>;:'{}[]\|/`?","")
+AsciiRus(str)
+ set y = 1
+ set str2 = str
+ for x=1:1:$Length(str){
+ 	if ($Extract(str, x, x+3)) = "&lt;" {
+	  set str2 = $Extract(str2, 1, y-1)_"<"_$Extract(str2, y+4,$Length(str2))
+	  set y = y - 3
+	}
+ 	if ($Extract(str, x, x+3)) = "&gt;" {
+	  set str2 = $Extract(str2, 1, y-1)_">"_$Extract(str2, y+4,$Length(str2))
+	  set y = y - 3
+	}
+	if ($Extract(str, x, x+4) = "&amp;"){
+	  set str2 = $Extract(str2, 1, y)_$Extract(str2, y+5,$Length(str2))
+	  set y = y - 4
+	}
+	if ($Extract(str, x, x + 5) = "&quot;"){
+	  set str2 = $Extract(str2, 1, y-1)_""""_$Extract(str2, y+6,$Length(str2))
+	  set y = y - 5
+	}
+  	set y = y + 1
+ }
+ q str2
+ 
+AsciiRus2(str)
+ set y = 1
+ set str2 = str
+ for x=1:1:$Length(str){
+ 	if ($Extract(str, x, x+3)) = "&lt;" {
+	  set str2 = $Extract(str2, 1, y-1)_"<"_$Extract(str2, y+4,$Length(str2))
+	  set y = y - 3
+	}
+ 	if ($Extract(str, x, x+3)) = "&gt;" {
+	  set str2 = $Extract(str2, 1, y-1)_">"_$Extract(str2, y+4,$Length(str2))
+	  set y = y - 3
+	}
+	if $ASCII($Extract(str, x, x))=10 {
+	  set str2 = $Extract(str2, 1, y)_"/// "_$Extract(str2, y+1,$Length(str2))
+	  set y = y + 4
+	}
+	if ($Extract(str, x, x+8) = "&amp;amp;"){
+	  set str2 = $Extract(str2, 1, y-1)_"&"_$Extract(str2, y+9,$Length(str2))
+	  set y = y - 8
+	}
+	if ($Extract(str, x, x + 5) = "&quot;"){
+	  set str2 = $Extract(str2, 1, y-1)_""""_$Extract(str2, y+6,$Length(str2))
+	  set y = y - 5
+	}
+  	set y = y + 1
+ }
+ q str2
+deletePackage(str)
+ for x=1:1:$Length(str){
+   if ($Extract(str, x, x)) = "." {
+	  set str2 = $Extract(str, x+1,$Length(str))
+	}
+ }
+ q str2
+
+deleteClass(str)
+ for x=1:1:$Length(str){
+   if ($Extract(str, x, x)) = "." {
+	  set str2 = $Extract(str, 1,x-1)
+	}
+ }
+ q str2
+]]></Implementation>
+</Method>
+</Class>
+
+
+<Class name="UML.WriterEA">
+<Description>
+Этот класс предназначен для экспорта из Cache в файл формата xmi 2.1</Description>
+<TimeCreated>62710,64791.70864</TimeCreated>
+
+<Method name="Export">
+<Description>
+Метод позволяет экспортировать классы в файл с параметрами. Первым параметром является полный путь файла, в который 
+экспортируются классы; второй - строка с названиями пакетов, которые должны распологаться в текущей области;
+a третий - название модели диаграммы классов в Enterprise Architect, который можно не указывать и принимает значение 
+по умолчанию "Cache"</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec>file,package,model="",namespace</FormalSpec>
+<ReturnType>%Status</ReturnType>
+<Implementation><![CDATA[
+ // КАК ЗАПИСЫВАЮ ИНДИФИКАТОРЫ ОБЪЕКТОВ
+ // Пакет - namePackage + "packageId"
+ // Класс - className + "Id"
+ // Свойство - nameProperty + "PropertyId" //где nameProperty - полное имя
+ // Метод - nameMethod + "MethodId"
+ // Параметер - nameParameter + "ParameterId"
+ // Ссылка - "Assotiation_" + номер Ассоциации
+ // Отношение - "Relationship" + номер Композиции или Агрегации
+ // Наследование - "Generalization" + номер Наследования
+ // Параметры метода - nameMethod + "_FormalSpec_" + parFormalSpecName 
+ zn namespace
+ #include %occStatus
+ #Include %soap
+ if model = "" {set model = "Cache"}
+ //РАЗДЕЛЕНИЕ ПАКЕТОВ НА ЧАСТИ
+ for i=1:1 {
+	if $piece(package,",",i)="" q
+	set namePackage(i) = $$delSim($piece(package,",",i))
+ }
+ 
+ set countPackage = i - 1
+  
+ Open file:(/NEW:/WRITE) //Открыли новый файл для записи
+ use file 
+ write "<?xml version=""1.0"" encoding=""windows-1252""?>",!
+ write "<xmi:XMI xmi:version=""2.1"" xmlns:uml=""http://schema.omg.org/spec/UML/2.1"" xmlns:xmi=""http://schema.omg.org/spec/XMI/2.1"">",!
+ write "<xmi:Documentation exporter=""Enterprise Architect"" exporterVersion=""6.5""/>",!
+ 
+ //ПЕРВАЯ ЧАСТЬ
+ write "<uml:Model xmi:type=""uml:Model"" name=""EA_Model"" visibility=""public"">",!
+ 
+ set iAssociation = 0
+ set iRelationship = 0
+ set iExtends = 0
+ 
+ //ЗАПИСЫВАЕМ ПАКЕТЫ
+ write "<packagedElement xmi:type=""uml:Package"" xmi:id=""", model," Model"" name=""",model ,""" visibility=""public"">",!
+ for i=1:1:countPackage {
+   set index = 0
+   do subPackage(namePackage(i),index)
+   write "</packagedElement>",!
+ }
+ write "</packagedElement>",!
+ write "</uml:Model>",!
+ 
+ //ВТОРАЯ ЧАСТЬ
+ write "<xmi:Extension>",!
+ 
+ //ЗАПИСЫВАЕМ ЭЛЕМЕНТЫ ДИАГРАММЫ
+ write "<elements>",!
+ write "<element xmi:idref=""",model," Model"">",!
+ write "<flags packageFlags=""isModel=1;VICON=3;""/>",!
+ write "</element>",!
+ 
+ //ЗАПИСЫВАЕМ ПАКЕТЫ
+ for i=1:1:countPackage {
+	set index = 0
+	do elements(namePackage(i), index)
+ }
+ write "</elements>",!
+ 
+ //ЗАПИСЫВАЕМ СВЯЗИ
+ write "<connectors>",!
+ for z=1:1:iAssociation{
+   write "<connector xmi:idref=""Assotiation_",z,""">",!
+   write "<source xmi:idref=""",associationClass1(z),"Id"">",!
+   write "<model type=""Class"" name=""",associationClass1(z),"""/>",!
+   write "<type aggregation=""none""/>",!
+   write "<modifiers isNavigable=""false""/>",!
+   write "<style value=""Navigable=Unspecified;""/>",!
+   write "</source>",!
+   write "<target xmi:idref=""",associationClass2(z),"Id"">",!
+   write "<model type=""Class"" name=""",associationClass2(z),"""/>",!
+   write "<role name=""",associationName(z),"""/>",!
+   write "<type aggregation=""none""/>",!
+   write "<modifiers isNavigable=""true""/>",!
+   write "<style value=""Navigable=Navigable;""/>",!
+   write "</target>",!
+   write "<properties ea_type=""Association"" direction=""Source -&gt; Destination""/>",!
+   write "<labels rt=""+",associationName(z),"""/>",!
+   write "</connector>",!
+ }
+ for z=1:1:iRelationship{
+   write "<connector xmi:idref=""Aggregation_",z,""">",!
+   write "<source xmi:idref=""",relationshipClass1(z),""">",!
+   write "<model type=""Class"" name=""",relationshipClass1(z),"""/>",!
+   write "<role name=""",relationshipName1(z),"""/>",!
+   write "<type aggregation=""none""/>",!
+   write "<modifiers isNavigable=""false""/>",!
+   write "<style value=""Navigable=Non-Navigable;""/>",!
+   write "</source>",!
+   write "<target xmi:idref=""",relationshipClass2(z),""">",!
+   write "<model type=""Class"" name=""",relationshipClass2(z),"""/>",!
+   write "<role name=""",relationshipName2(z),"""/>",!
+   if (relationshipType(z) = "one") {write "<type aggregation=""shared""/>",!}
+   elseif (relationshipType(z) = "parent") {write "<type aggregation=""composite""/>",!}
+   write "<modifiers isNavigable=""true""/>",!
+   write "<style value=""Navigable=Navigable;""/>",!
+   write "</target>"
+   write "<properties ea_type=""Aggregation"" direction=""Source -&gt; Destination""/>",!
+   write "<labels lt=""+",relationshipName1(z),""" rt=""+",relationshipName2(z),"""/>",!
+   write "</connector>",!
+ }
+ 
+ for z=1:1:iExtends{
+   write "<connector xmi:idref=""Generalization_",z,""">",!
+   write "<source xmi:idref=""",extendsClass1(z), "Id"">",!
+   write "<model type=""Class"" name=""",extendsClass1(z),"""/>",!
+   write "<type aggregation=""none""/>",!
+   write "<modifiers isNavigable=""false""/>",!
+   write "</source>",!
+   write "<target xmi:idref=""",extendsClass2(z),"Id"">",!
+   write "<model type=""Class"" name=""",extendsClass2(z),"""/>",!
+   write "<type aggregation=""none""/>",!
+   write "<modifiers isNavigable=""true""/>",!
+   write "</target>",!
+   write "<properties ea_type=""Generalization""/>"
+   write "</connector>",!
+ }
+
+ write "</connectors>",! //ЗАПИСАЛИ СВЯЗИ
+ 
+ //ЗАПИСЫВАЕМ ДИАГРАММЫ
+ write "<diagrams>",!
+ for i=1:1:countPackage {
+	set index = 0
+ 	do diagrams(namePackage(i),index)
+ }
+ write "</diagrams>",! //ЗАПИСАЛИ ДИАГРАММЫ
+ 
+ write "</xmi:Extension>",!
+ write "</xmi:XMI>" //ЗАКРЫВАЕМ XMI-ФАЙЛ
+ Close file
+ w "Файл ", file, " записан",! 
+ q
+ 
+ //---------------------------------------------------------->
+subPackage(namePackage,index)
+	set namePackage2 =  $$tranPackage(namePackage)
+ 	write "<packagedElement xmi:type=""uml:Package"" xmi:id=""", namePackage2, "packageId"" name=""", namePackage2, """ visibility=""public"">",!
+ 	
+ 	//СЧИТЫВАЕМ КЛАССЫ В МАССИВ УКАЗАННОГО ПАКЕТА
+ 	kill nameClass
+ 	SET myquery = "select Name,SqlTableName from %Dictionary.CompiledClass where SqlSchemaName = '"_namePackage_"'"
+	SET tStatement = ##class(%SQL.Statement).%New()
+	SET tStatus = tStatement.%Prepare(myquery)
+	SET rset = tStatement.%Execute()
+	set countClass = 0
+	WHILE rset.%Next() {
+	   set countClass = countClass + 1
+	   set nameClass(countClass) = rset.%GetData(1)
+	   set nameSqlClass(countClass) = rset.%GetData(2)
+    }
+ 		
+ 	//ЗАПИСЫВАЕМ КЛАССЫ
+ 	for j=1:1:countClass {
+	   set cl=##class(%Dictionary.ClassDefinition).%OpenId(nameClass(j))
+ 	   write "<packagedElement xmi:type=""uml:Class"" xmi:id=""",nameClass(j) ,"Id"" name=""", cl.Name,""" visibility=""public"">",!
+	   
+	   //ЗАПИСЫВАЕМ ПАРАМЕТРЫ КЛАССА
+	   if cl.Parameters.Count()'=0 { //ПРОВЕРКА НА СУЩЕСТВОВАНИЕ ПАРАМЕТРОВ КЛАССА
+	   write "<ownedTemplateSignature xmi:id=""",nameClass(j),"_Parameters"">",!
+	   set countParameter = cl.Parameters.Count()
+	   set Par = ""
+	   for k=1:1:countParameter {
+  	      set nameParameter = cl.Parameters.GetObjectIdAt(k)
+ 	      set param = ##class(%Dictionary.ParameterDefinition).%OpenId(nameParameter)
+ 	      
+ 	      write "<parameter xmi:idref=""",nameParameter,"ParameterId""/>",!
+		  write "<ownedParameter xmi:id=""",nameParameter,"ParameterId"">",!
+		  write "<ownedParameteredElement xmi:type=""",param.Type,""" name=""", param.Name, """ visibility=""public"" templateParameter=""",nameParameter,"ParameterId""/>",!
+		  write "</ownedParameter>",!
+	   }
+	   write "</ownedTemplateSignature>",!
+	   }
+	   for w=1:1 {
+	     if $piece(cl.Super,",",w)="" q
+	   	   set nameSuper(w) = $$delSim($piece(cl.Super,",",w))
+ 		 }
+ 		 set countSuper = w - 1
+ 		 for w=1:1:countSuper{
+ 	   	   for z = 1:1:countClass{
+	   	  	 if (nameSuper(w) = nameSqlClass(z)) || (nameSuper(w) = nameClass(z)){
+		   	   set iExtends = iExtends + 1
+		   	   set extendsPackage(iExtends) = namePackage2
+		   	   set extendsClass1(iExtends) = cl.Name
+		   	   if '$find(nameSuper(w),namePackage2)
+		  	   set extendsClass2(iExtends) = nameClass(z)
+		  	 }
+ 	   	   }
+ 		 }
+						
+ 	   //ЗАПИСЫВАЕМ СВОЙСТВА КЛАССА
+ 	   set countProperty = cl.Properties.Count()
+ 	   if countProperty'=0 {
+ 	   for k=1:1:countProperty {
+ 		  set nameProperty = cl.Properties.GetObjectIdAt(k)
+ 		  set prop = ##class(%Dictionary.PropertyDefinition).%OpenId(nameProperty)
+ 		  //определяем Private or Public
+ 		  if (prop.Private = 1) {set privateProp = "private"}
+ 		  else {set privateProp = "public"} 
+ 		  If prop.Relationship '= 1 {
+ 		  	write "<ownedAttribute xmi:type=""uml:Property"" xmi:id=""",nameProperty,"PropertyId"" name=""", prop.Name,""" visibility=""", privateProp ,""">",!
+ 	   	 	write "<type xmi:idref=""",prop.Type,"""/>",!
+ 	   	  	write "</ownedAttribute>",!
+ 		  }
+
+ 		  
+ 	   	  for z=1:1:countClass {
+ 	   	  	if $Extract(nameClass(z),$Length(nameClass(z))-$Length(prop.Type)+1,$Length(nameClass(z))) = prop.Type {
+ 	   	  	  // СОХРАНЯЕМ ИНФОРМАЦИЮ ОБ RELATIONSHIP
+ 	   	  	  if prop.Relationship = 1{
+	 	   	  	if ($$tran(prop.Cardinality) = "one") || ($$tran(prop.Cardinality) = "parent"){
+ 	   	  	  	  set iRelationship = iRelationship + 1
+ 	   	  	  	  set relationshipClass1(iRelationship) = nameClass(j)
+ 	   	  	  	  set relationshipClass2(iRelationship) = nameClass(z)
+ 	   	  	  	  set relationshipType(iRelationship) = $$tran(prop.Cardinality)
+ 	   	  	  	  set relationshipName1(iRelationship) = prop.Inverse
+ 	   	  	  	  set relationshipName2(iRelationship) = prop.Name
+ 	   	  	  	}
+ 	   	  	  }
+ 	   	  	  else {
+	 	   	  	set iAssociation = iAssociation + 1
+	 	   	  	set associationClass1(iAssociation) = nameClass(j)
+	 	   	  	set associationClass2(iAssociation) = nameClass(z)
+	 	   	  	set associationName(iAssociation) = prop.Name
+	 	   	  }
+ 	   	  	}
+ 	   	  }
+ 	   }
+ 	   }
+ 	   	  
+ 	   //ЗАПИСЫВАЕМ ОПЕРАЦИИ КЛАССА
+ 	   set countMethod = cl.Methods.Count()
+ 	   if countMethod'=0 {
+ 	   for k=1:1:countMethod {
+	 	  set nameMethod = cl.Methods.GetObjectIdAt(k)
+	 	  set method = ##class(%Dictionary.MethodDefinition).%OpenId(nameMethod)
+ 		  //ОПРЕДЕЛЯЕМ PRIVATE OR PUBLIC
+ 		  if method.Private = 1 {set privateMethod = "private"}
+ 		  else {set privateMethod = "public"}
+	 	  //ОПРЕДЕЛЯЕМ ЯВЛЯЕТСЯ ЛИ CLASSMETHOD
+ 	      if method.ClassMethod=1 {set classMethod = "true"}
+	   	  else {set classMethod = "false"}
+	   	  //ОПРЕДЕЛЯЕМ АБСТРАКТНОСТЬ КЛАССА
+	   	  if method.Abstract=1 {set abstractMethod = "true"}
+	   	  else {set abstractMethod = "false"}
+ 	   	  ;----->
+ 	   	  if (classMethod = "true") && (abstractMethod = "true"){write "<ownedOperation xmi:id=""",nameMethod,"MethodId"" name=""", method.Name,""" visibility=""", privateMethod, """ concurrency=""sequential"" isStatic=""",classMethod,""" isAbstract=""",abstractMethod,""">",!}
+ 	   	  elseif classMethod = "true" {write "<ownedOperation xmi:id=""",nameMethod,"MethodId"" name=""", method.Name,""" visibility=""", privateMethod, """ concurrency=""sequential"" isStatic=""",classMethod,""">",!}
+ 	   	  elseif abstractMethod = "true" {write "<ownedOperation xmi:id=""",nameMethod,"MethodId"" name=""", method.Name,""" visibility=""", privateMethod, """ concurrency=""sequential"" isAbstract=""",abstractMethod,""">",!}
+ 	   	  else {write "<ownedOperation xmi:id=""",nameMethod,"MethodId"" name=""", method.Name,""" visibility=""", privateMethod, """ concurrency=""sequential"">",!}
+		  ;<-----
+		  //ПРОВЕРКА НА СУЩЕСТВОВАНИЕ АРГУМЕНТОВ МЕТОДА
+		  if method.FormalSpec '=""{
+			 set defaultQuotes = 0, defaultBracket = 0
+		     for z=1:1 {
+			 if $piece(method.FormalSpec,",",z)="" q
+			   If (defaultBracket = 0) && (defaultQuotes = 0){	
+				set parFormalSpec = $piece(method.FormalSpec,",",z)
+	
+				if ($find(parFormalSpec,":")) && ($find(parFormalSpec,"=")) {
+				   set parFormalSpecName = $piece(parFormalSpec,":",1)
+				   set parFormalSpecName2 = $piece(parFormalSpec,":",2)
+				   set parFormalSpecType = $piece(parFormalSpecName2,"=",1)
+				   set parFormalSpecDefault = $piece(parFormalSpecName2,"=",2)
+			 	}
+			 	elseif $find(parFormalSpec,":") {
+				   set parFormalSpecName = $piece(parFormalSpec,":",1) 
+				   set parFormalSpecType = $piece(parFormalSpec,":",2)
+				   set parFormalSpecDefault = ""
+			 	}
+			 	elseif $find(parFormalSpec,"=") {
+			 	   set parFormalSpecName = $piece(parFormalSpec,"=",1)
+				   set parFormalSpecType = "%String"
+				   set parFormalSpecDefault = $piece(parFormalSpec,"=",2)
+			 	}
+				else {
+				   set parFormalSpecName = parFormalSpec
+				   set parFormalSpecType = "%String"
+				   set parFormalSpecDefault = ""
+			 	}
+			 	
+				if $find(parFormalSpecName,"&") {set parFormalSpecKind = "inout", parFormalSpecName = $extract(parFormalSpecName,2,*)}
+				elseif $find(parFormalSpecName,"*") {set parFormalSpecKind = "out", parFormalSpecName = $extract(parFormalSpecName,2,*)}
+				else {set parFormalSpecKind = "in"}
+				  
+				if ($find(parFormalSpecDefault,"""")) && ($find(parFormalSpecDefault,"""",$find(parFormalSpecDefault,""""))=0) {
+				  set defaultQuotes = 1
+				  set parFormalSpecDefault = parFormalSpecDefault
+				  }
+				if ($find(parFormalSpecDefault,"(")) && ($find(parFormalSpecDefault,")")=0) {
+				  set defaultBracket = 1
+				  set parFormalSpecDefault = parFormalSpecDefault
+				}
+			   }
+			   ElseIf (defaultBracket = 1) || (defaultQuotes = 1){
+				set parFormalSpec = $piece(method.FormalSpec,",",z)
+				 If (defaultBracket = 1) && ($find(parFormalSpec,")")) {set defaultBracket = 0}
+			   	 If (defaultQuotes = 1) && ($find(parFormalSpec,"""")) {set defaultQuotes = 0}
+			   	 set parFormalSpecDefault = parFormalSpecDefault_","_parFormalSpec
+			   }
+				If (defaultBracket = 0) && (defaultQuotes = 0){
+				  //if $extract(parFormalSpecDefault,1,1) = """" {set parFormalSpecDefault = $extract(parFormalSpecDefault,2,*-1)}
+				  if parFormalSpecDefault '= ""{
+				    write "<ownedParameter xmi:id=""",nameMethod,"_FormalSpec_", parFormalSpecName,""" name=""", parFormalSpecName,""" direction=""",parFormalSpecKind,""" type=""EAnone__",parFormalSpecType,""">",!
+				    write "<defaultValue xmi:id=""",nameMethod,"_FormalSpec_", parFormalSpecName,"_Default"" value=""",$$AsciiRus(parFormalSpecDefault),"""/>",!
+				    write "</ownedParameter>",!
+		     	  }
+				  else{
+				    write "<ownedParameter xmi:id=""",nameMethod,"_FormalSpec_", parFormalSpecName,""" name=""", parFormalSpecName,""" direction=""",parFormalSpecKind,""" type=""EAnone__",parFormalSpecType,"""/>",!
+				  }
+				}
+ 			 }
+		  }
+		  
+		  write "<ownedParameter type=""",method.ReturnType,"""/>",!
+		  write "</ownedOperation>",!
+ 	   }
+ 	   }
+ 	   write "</packagedElement>",!
+ 	}
+   Set rs=##class(%ResultSet).%New("%Dictionary.PackageDefinition:SubPackage")
+   Set %sc=rs.Execute(namePackage2)
+   //Set columns=rs.GetColumnCount()
+   set as(index) = 0
+   while (rs.Next(.sc)'=0) {
+	 set as(index) = as(index) + 1
+	 set as(index,"subpackage") = namePackage2
+	 set index = index + 1
+	 if $$$ISOK(sc) { set namePack = namePackage_"_"_rs.GetData(1)}
+	 do subPackage(namePack,index)
+	 set index = index - 1
+	 set namePackage2 = as(index,"subpackage")
+	 Set rs=##class(%ResultSet).%New("%Dictionary.PackageDefinition:SubPackage")
+     Set %sc=rs.Execute(namePackage2)
+	 for с = 1:1:as(index) {
+     	set vovo = rs.Next(.sc)
+	 }
+	 write "</packagedElement>",!
+   }
+ q
+ //<-----------------------------------------------------------
+ //----------------------------------------------------------->
+elements(namePackage,index)
+	set namePackage2 =  $$tranPackage(namePackage)
+	write "<element xmi:idref=""", namePackage2, "packageId"" xmi:type=""uml:Package"" name=""", namePackage2, """ scope=""public"">",!
+ 	write "<model package=""",model," Model""/>",!
+ 	write "<flags packageFlags=""isModel=1;VICON=3;""/>",!
+ 	write "</element>",!
+ 	
+ 	
+ 	//СЧИТЫВАЕМ КЛАССЫ УКАЗАННОГО ПАКЕТА
+ 	SET myquery = "select Name,SqlTableName from %Dictionary.CompiledClass where SqlSchemaName = '"_namePackage_"'"
+	SET tStatement = ##class(%SQL.Statement).%New()
+	SET tStatus = tStatement.%Prepare(myquery)
+	SET rset = tStatement.%Execute()
+	set countClass = 0
+	WHILE rset.%Next() {
+	   set countClass = countClass + 1
+	   set nameClass(countClass) = rset.%GetData(1)
+	   set nameSqlClass(countClass) = rset.%GetData(2)
+     }
+     
+    //ЗАПИСЫВАЕМ КЛАСС
+ 	set posCollection = 1 //номер позиции контейнера коллекции
+ 	for j=1:1:countClass {
+ 	set cl=##class(%Dictionary.ClassDefinition).%OpenId(nameClass(j))
+ 	set extended = 0
+ 	if cl.Final = 1 {set finalClass = "true"} //ОПРЕДЕЛЯЕМ ЯВЛЯЕТСЯ ЛИ КЛАСС FINAL
+ 	else {set finalClass = "false"}
+ 	
+ 	if cl.Abstract = 1 {set abstractClass = "true"} //ОПРЕДЕЛЯЕМ ЯВЛЯЕТСЯ ЛИ КЛАСС ABSTRACT
+ 	else {set abstractClass = "false"}
+ 	write "<element xmi:idref=""",nameClass(j), "Id"" xmi:type=""uml:Class"" name=""", cl.Name,""" scope=""public"">",!
+ 	write "<properties documentation=""", $$AsciiRus(cl.Description),""" sType=""Class"" scope=""public"" isLeaf=""", finalClass,""" isAbstract=""",abstractClass,"""/>",!
+ 	
+ 	//ЗАПИСЫВАЕМ LINKS
+ 	set links = "true"
+ 	for z=1:1:iExtends {
+	  if (nameClass(j) = extendsClass1(z)) || (nameClass(j) = extendsClass2(z)){
+	 	if links = "true" {write "<links>",! set links = "false"}
+ 	 	write "<Generalization xmi:id=""Generalization_",z,""" start=""",extendsClass1(z), "Id"" end=""",extendsClass2(z),"Id""/>",! 	  }			
+ 	}
+ 	for z=1:1:iAssociation {
+	  //АССОЦИАЦИЯ
+ 	  if (nameClass(j) = associationClass1(z)) || (nameClass(j) = associationClass2(z)){
+	 	if links = "true" {write "<links>",! set links = "false"}
+	    write "<Association xmi:id=""Assotiation_",z,""" start=""",associationClass1(z), "Id"" end=""",associationClass2(z),"Id""/>",!
+ 	  }
+ 	}
+ 	 for z=1:1:iRelationship {
+	  //AGGREGATION AND COMPOSITION (PARENT-TO-CHILD, ONE-TO-MANY)
+ 	  if (nameClass(j) = relationshipClass1(z)) || (nameClass(j) = relationshipClass2(z)){
+	 	if links = "true" {write "<links>",! set links = "false"}
+	 	write "<Aggregation xmi:id=""Aggregation_",z,""" start=""",relationshipClass1(z), "Id"" end=""",relationshipClass2(z),"Id""/>",!
+ 	  }
+ 	}
+	if links = "false" {write "</links>",!}
+	
+ 	//ЗАПИСЫВАЕМ ТЭГИ КЛАССА
+ 	for k=1:1 {
+	   if $piece(cl.Super,",",k)="" q
+	   set nameSuper(k) = $$delSim($piece(cl.Super,",",k))
+ 	}
+ 	set countSuper = k - 1
+ 	set extendsYes = 0
+ 	set nameExtends = ""
+ 	if countSuper '= 0{
+ 	  for k=1:1:countSuper{
+	   	set superNo = 0
+ 	   	for z = 1:1:countClass{
+	   	  if (nameSuper(k)=nameSqlClass(z)) || (nameSuper(k)=nameClass(z)) || $find($$tran(nameSuper(k)),"%persistent") set superNo = 1
+ 	   	}
+ 	   	if superNo = 0{
+	 	  if nameExtends '= "" {set nameExtends = nameExtends_","_nameSuper(k)}
+	 	  else {set nameExtends = nameSuper(k)}
+	 	  set extendsYes = 1
+ 	    }
+ 	  }
+ 	}
+ 	
+ 	if (extendsYes = 1) || (cl.IncludeCode '=""){
+ 	write "<tags>",!
+	if extendsYes = 1 {write "<tag xmi:id=""",nameClass(j),"_Extends"" name=""Extends"" value=""",nameExtends,""" modelElement=""",nameClass(j), "Id""/>",!}
+	if cl.IncludeCode '="" {write "<tag xmi:id=""",nameClass(j),"_IncludeCode"" name=""Include"" value=""",cl.IncludeCode,""" modelElement=""",nameClass(j), "Id""/>",!}
+	write "</tags>",!
+ 	}
+ 	
+ 	//ЗАПИСЫВАЕМ %PERSISTENT И ПАРАМЕТРЫ КЛАССА
+ 	if $find($$tran(cl.Super),"%persistent") {set extended = extended + 1} // ПРОВЕРКА НА %PERSISTENT
+	if cl.Parameters.Count()'=0 { //ПРОВЕРКА НА СУЩЕСТВОВАНИЕ ПАРАМЕТРОВ КЛАССА
+	   set countParameter = cl.Parameters.Count()
+	   set Par = ""
+	   for k=1:1:countParameter {
+  	      set nameParameter  = cl.Parameters.GetObjectIdAt(k)
+ 	      set param = ##class(%Dictionary.ParameterDefinition).%OpenId(nameParameter)
+ 	      If Par '= "" {set Par = Par_"&lt;PRM"_k_"&gt;="_param.Name_";&lt;TYP"_k_"&gt;="_param.Type_";&lt;DEF"_k_"&gt;="_param.Default_";"}
+	   	  else {set Par = "&lt;PRM"_k_"&gt;="_param.Name_";&lt;TYP"_k_"&gt;="_param.Type_";&lt;DEF"_k_"&gt;="_param.Default_";"}
+	   }
+	   set extended = extended + 2
+	}
+	If extended = 3 {write "<extendedProperties persistence=""Persistent"" parameters=""",Par,"""/>",!}
+	elseif extended = 2 {write "<extendedProperties parameters=""",Par,"""/>",!}
+	elseif extended = 1 {write "<extendedProperties persistence=""Persistent""/>",!}
+	
+ 	//ЗАПИСЫВАЕМ СВОЙСТВА КЛАССА
+ 	set countProperty = cl.Properties.Count()
+ 	if countProperty'=0 {
+ 	write "<attributes>",!
+ 	for k=1:1:countProperty {
+	 set nameProperty = cl.Properties.GetObjectIdAt(k)
+ 	 set prop = ##class(%Dictionary.PropertyDefinition).%OpenId(nameProperty)
+ 	 If prop.Relationship '= 1 {
+ 	   //ОПРЕДЕЛЯЕМ PRIVATE OR PUBLIC
+ 	   if (prop.Private = 1) {set privateProp = "private"}
+ 	   else {set privateProp = "public"} 
+ 	   
+ 	   write "<attribute xmi:idref=""",nameProperty,"PropertyId"" name=""",prop.Name , """ scope=""",privateProp ,""">",!
+ 	   if prop.InitialExpression '="""""" {write "<initial body=""",prop.InitialExpression ,"""/>",!} // ПРОВЕРКА НА НАЧАЛЬНОЕ ЗНАЧЕНИЕ
+ 	   if prop.Description '="" {write "<documentation value=""",$$AsciiRus(prop.Description),"""/>",!}
+ 	   if prop.Collection '= "" { //ЯВЛЯЕТСЯ ЛИ КОЛЛЕКЦИЕЙ
+	 	  write "<properties type=""",prop.Type,""" collection=""true""/>",!
+	   	  if $$tran(prop.Collection = "array") {write "<containment containment=""Not Specified"" container=""array"" position=""",posCollection,"""/>",! set posCollection = posCollection + 1}
+	   	  elseif $$tran(prop.Collection = "list") {write "<containment containment=""Not Specified"" container=""list"" position=""",posCollection,"""/>",! set posCollection = posCollection + 1}
+	   }
+	   else {write "<properties type=""",prop.Type,""" collection=""false""/>",!}
+	   	   
+	   //ЗАДАЕМ ТЭГИ АТРИБУТА
+	  If (prop.Final = 1) || (prop.Required = 1) || (prop.ReadOnly = 1) || (prop.Calculated = 1) || (prop.Identity = 1) || (prop.Internal = 1) || (prop.MultiDimensional = 1) || (prop.SqlComputed = 1) || (prop.ClientName '= "") || (prop.SqlCollation '= "") || (prop.SqlColumnNumber '= "") || (prop.SqlComputeCode '= "") || (prop.SqlComputeOnChange '= "") || (prop.SqlFieldName '= "") || (prop.SqlListDelimiter '= "") || (prop.SqlListType '= "") || (prop.ServerOnly '= "") || (prop.Parameters.Count()'=0){
+	      write "<tags>",!
+	      If prop.Final = 1 {write "<tag xmi:id=""",nameProperty,"Final"" name=""Final""/>",!} //ЗАДАЕМ FINAL АТРИБУТА
+	      If prop.Required = 1 {write "<tag xmi:id=""",nameProperty,"Required"" name=""Required""/>",!} //ЗАДАЕМ Required АТРИБУТА
+	      If prop.ReadOnly = 1 {write "<tag xmi:id=""",nameProperty,"ReadOnly"" name=""ReadOnly""/>",!} //ЗАДАЕМ ReadOnly АТРИБУТА
+	      If prop.Calculated = 1 {write "<tag xmi:id=""",nameProperty,"Calculated"" name=""Calculated""/>",!} //ЗАДАЕМ Calculated АТРИБУТА
+	      If prop.Identity = 1 {write "<tag xmi:id=""",nameProperty,"Identity"" name=""Identity""/>",!} //ЗАДАЕМ Identity АТРИБУТА
+	      If prop.Internal = 1 {write "<tag xmi:id=""",nameProperty,"Internal"" name=""Internal""/>",!} //ЗАДАЕМ Internal АТРИБУТА
+	      If prop.MultiDimensional = 1 {write "<tag xmi:id=""",nameProperty,"MultiDimensional"" name=""MultiDimensional""/>",!} //ЗАДАЕМ MultiDimensional АТРИБУТА
+	      If prop.SqlComputed = 1 {write "<tag xmi:id=""",nameProperty,"SqlComputed"" name=""SqlComputed""/>",!} //ЗАДАЕМ SqlComputed АТРИБУТА
+	      if prop.ClientName'="" {write "<tag xmi:id=""",nameProperty,"ClientName"" name=""ClientName"" value=""", $$AsciiRus(prop.ClientName),"""/>",!}
+	      if prop.SqlCollation'="" {write "<tag xmi:id=""",nameProperty,"SqlCollation"" name=""SqlCollation"" value=""", $$AsciiRus(prop.SqlCollation),"""/>",!}
+	      if prop.SqlColumnNumber'="" {write "<tag xmi:id=""",nameProperty,"SqlColumnNumber"" name=""SqlColumnNumber"" value=""", $$AsciiRus(prop.SqlColumnNumber),"""/>",!}
+	      if prop.SqlComputeCode'="" {write "<tag xmi:id=""",nameProperty,"SqlComputeCode"" name=""SqlComputeCode"" value=""", $$AsciiRus(prop.SqlComputeCode),"""/>",!}
+	      if prop.SqlComputeOnChange'="" {write "<tag xmi:id=""",nameProperty,"SqlComputeOnChange"" name=""SqlComputeOnChange"" value=""", $$AsciiRus(prop.SqlComputeOnChange),"""/>",!}
+	      if prop.SqlFieldName'="" {write "<tag xmi:id=""",nameProperty,"SqlFieldName"" name=""ClientName"" SqlFieldName""", $$AsciiRus(prop.SqlFieldName),"""/>",!}
+	      if prop.SqlListDelimiter'="" {write "<tag xmi:id=""",nameProperty,"SqlListDelimiter"" name=""SqlListDelimiter"" value=""", $$AsciiRus(prop.SqlListDelimiter),"""/>",!}
+	      if prop.SqlListType'="" {write "<tag xmi:id=""",nameProperty,"SqlListType"" name=""SqlListType"" value=""", $$AsciiRus(prop.SqlListType),"""/>",!}
+	      if prop.ServerOnly'="" {write "<tag xmi:id=""",nameProperty,"ServerOnly"" name=""ServerOnly"" value=""", $$AsciiRus(prop.ServerOnly),"""/>",!}
+	      //ПАРАМЕТРЫ СВОЙСТВА КЛАССА
+	      if prop.Parameters.Count()'=0{
+			 s key="" for {
+			 	s param=prop.Parameters.GetNext(.key) Q:key=""
+  			 	write "<tag xmi:id=""",nameProperty,"_Parameter_",key,""" name=""Parameter"" value=""",key,"=",$$AsciiRus(param),"""/>",!
+			 }
+	      }
+	      write "</tags>",!
+	   }
+	   
+	   if prop.Transient = 1 write "<styleex value=""IsLiteral=0;volatile=1;""/>",! //ЗАДАЕМ TRANSIENT
+	   write "</attribute>",!
+	 }
+ 	}
+ 	write "</attributes>",! //ЗАПИСАЛИ СВОЙСТВА КЛАССА
+ 	}
+ 	
+ 	
+ 	//ЗАПИСЫВАЕМ ОПЕРАЦИИ КЛАССА
+ 	set countMethod = cl.Methods.Count()
+ 	if countMethod'=0 {
+	write "<operations>",!
+ 	for k=1:1:countMethod {
+	   set nameMethod = cl.Methods.GetObjectIdAt(k)
+	   set method = ##class(%Dictionary.MethodDefinition).%OpenId(nameMethod)
+ 	   //ОПРЕДЕЛЯЕМ PRIVATE OR PUBLIC
+ 	   if method.Private = 1 {set privateMethod = "private"}
+ 	   else {set privateMethod = "public"}
+ 	   //ОПРЕДЕЛЯЕМ ЯВЛЯЕТСЯ ЛИ CLASSMETHOD
+ 	   if method.ClassMethod=1 {set classMethod = "true"}
+	   else {set classMethod = "false"}
+	   //ОПРЕДЕЛЯЕМ АБСТРАКТНОСТЬ КЛАССА
+	   if method.Abstract=1 {set abstractMethod = "true"}
+	   else {set abstractMethod = "false"}
+	   //Определяем есть ли код 	
+	   write "<operation xmi:idref=""",nameMethod,"MethodId"" name=""", method.Name,""" scope=""", privateMethod, """>",!
+	   write "<properties position=""",k-1,"""/>",!
+	   write "<type type=""",method.ReturnType,""" static=""", classMethod ,""" isAbstract=""",abstractMethod,"""/>",!
+	   //w method.Implementation.Read()
+	   write "<code value=""", $$AsciiRus(method.Implementation.Read()),"""/>",!
+	   if method.Description '="" {write "<documentation value=""",$$AsciiRus(method.Description),"""/>",!}
+	   //ПРОВЕРКА НА СУЩЕСТВОВАНИЕ АРГУМЕНТОВ МЕТОДА
+	   if method.FormalSpec '=""{
+		 for z=1:1 {
+		  if $piece(method.FormalSpec,",",z)="" q
+			If (defaultBracket = 0) && (defaultQuotes = 0){	
+			set parFormalSpec = $piece(method.FormalSpec,",",z)
+	
+			if ($find(parFormalSpec,":")) && ($find(parFormalSpec,"=")) {
+			  set parFormalSpecName = $piece(parFormalSpec,":",1)
+			  set parFormalSpecName2 = $piece(parFormalSpec,":",2)
+			  set parFormalSpecType = $piece(parFormalSpecName2,"=",1)
+			  set parFormalSpecDefault = $piece(parFormalSpecName2,"=",2)
+			}
+			elseif $find(parFormalSpec,":") {
+			  set parFormalSpecName = $piece(parFormalSpec,":",1) 
+			  set parFormalSpecType = $piece(parFormalSpec,":",2)
+			  set parFormalSpecDefault = ""
+			}
+			elseif $find(parFormalSpec,"=") {
+			  set parFormalSpecName = $piece(parFormalSpec,"=",1)
+			  set parFormalSpecType = "%String"
+			  set parFormalSpecDefault = $piece(parFormalSpec,"=",2)
+			}
+			else {
+			  set parFormalSpecName = parFormalSpec
+			  set parFormalSpecType = "%String"
+			  set parFormalSpecDefault = ""
+			}
+			 	
+			if $find(parFormalSpecName,"&") {set parFormalSpecKind = "inout", parFormalSpecName = $extract(parFormalSpecName,2,*)}
+			elseif $find(parFormalSpecName,"*") {set parFormalSpecKind = "out", parFormalSpecName = $extract(parFormalSpecName,2,*)}
+			else {set parFormalSpecKind = "in"}
+
+			if ($find(parFormalSpecDefault,"""")) && ($find(parFormalSpecDefault,"""",$find(parFormalSpecDefault,""""))=0) {
+			  set defaultQuotes = 1
+			  set parFormalSpecDefault = parFormalSpecDefault
+			}
+			if ($find(parFormalSpecDefault,"(")) && ($find(parFormalSpecDefault,")")=0) {
+			  set defaultBracket = 1
+			  set parFormalSpecDefault = parFormalSpecDefault
+			}
+		  }
+		  ElseIf (defaultBracket = 1) || (defaultQuotes = 1){
+			set parFormalSpec = $piece(method.FormalSpec,",",z)
+			If (defaultBracket = 1) && ($find(parFormalSpec,")")) {set defaultBracket = 0}
+			If (defaultQuotes = 1) && ($find(parFormalSpec,"""")) {set defaultQuotes = 0}
+			  set parFormalSpecDefault = parFormalSpecDefault_","_parFormalSpec
+		  }
+		  
+		  If (defaultBracket = 0) && (defaultQuotes = 0){
+		  	//if $extract(parFormalSpecDefault,1,1) = """" {set parFormalSpecDefault = $extract(parFormalSpecDefault,2,*-1)}
+			write "<parameter xmi:idref=""",nameMethod,"_FormalSpec_", parFormalSpecName,""" visibility=""public"">",!
+			write "<properties type=""",parFormalSpecType,"""/>",!	
+			  if parFormalSpecDefault '= ""{
+			 	write "<Value body=""",$$AsciiRus(parFormalSpecDefault),"""/>",!
+			  }
+			write "</parameter>",!
+		  } 
+ 		 }
+	   }
+	   
+	   //ЗАПИСЬ В ТЭГИ МЕТОДА
+	   if (method.Final=1) || (method.NotInheritable=1) || (method.ClientName '="") || (method.ClientMethod=1) || (method.CodeMode '="") || (method.WebMethod=1) || (method.ExternalProcName '="") || (method.ForceGenerate = 1) || (method.GenerateAfter '= "") || (method.Internal = 1) || (method.Language '= "") || (method.NoContext = 1) || (method.PlaceAfter '= "") || (method.PublicList '= "") || (method.ReturnResultsets = 1) || (method.ReturnTypeParams '= "") || (method.ServerOnly = 1) || (method.SoapAction '= "") || (method.SoapBindingStyle '= "") || (method.SoapBodyUse '= "") || (method.SoapMessageName '= "") || (method.SoapNameSpace '= "") || (method.SoapTypeNameSpace '= "") || (method.SqlName '= "") || (method.SqlProc = 1) || ( method.ZenMethod=1) {
+	   	  write "<tags>",!
+	   	  if method.Final=1 {write "<tag xmi:id=""",nameMethod,"_Final"" name=""Final""/>",!}
+	   	  if method.NotInheritable=1 {write "<tag xmi:id=""",nameMethod,"_NotInheritable"" name=""NotInheritable""/>",!}
+	   	  if method.ClientMethod=1 {write "<tag xmi:id=""",nameMethod,"_ClientMethod"" name=""ClientMethod""/>",!}
+	   	  if method.ClientName '="" {write "<tag xmi:id=""",nameMethod,"_ClientName"" name=""ClientName"" value=""",method.ClientName,"""/>",!}
+	   	  if method.CodeMode '="code" {write "<tag xmi:id=""",nameMethod,"_CodeMode"" name=""CodeMode"" value=""",method.CodeMode,"""/>",!} 
+	   	  if method.ExternalProcName '="" {write "<tag xmi:id=""",nameMethod,"_ExternalProcName"" name=""ExternalProcName"" value=""",method.ExternalProcName,"""/>",!}
+	   	  if method.ForceGenerate = 1 {write "<tag xmi:id=""",nameMethod,"_ForceGenerate"" name=""ForceGenerate""/>",!}
+	   	  if method.GenerateAfter '= "" {write "<tag xmi:id=""",nameMethod,"_GenerateAfter"" name=""GenerateAfter"" value=""",method.GenerateAfter,"""/>",!} 
+	   	  if method.Internal = 1 {write "<tag xmi:id=""",nameMethod,"_Internal"" name=""Internal""/>",!} 
+	   	  if method.Language '= "" {write "<tag xmi:id=""",nameMethod,"_Language"" name=""Language"" value=""",method.Language,"""/>",!} 
+	   	  if method.NoContext = 1 {write "<tag xmi:id=""",nameMethod,"_NoContext"" name=""NoContext""/>",!} 
+	   	  if method.PlaceAfter '= "" {write "<tag xmi:id=""",nameMethod,"_PlaceAfter"" name=""PlaceAfter"" value=""",method.PlaceAfter,"""/>",!} 
+	   	  if method.PublicList '= "" {write "<tag xmi:id=""",nameMethod,"_PublicList"" name=""PublicList"" value=""",method.PublicList,"""/>",!} 
+	   	  if method.ReturnResultsets = 1 {write "<tag xmi:id=""",nameMethod,"_ReturnResultsets"" name=""ReturnResultsets""/>",!} 
+	   	  if method.ReturnTypeParams '= "" {write "<tag xmi:id=""",nameMethod,"_ReturnTypeParams"" name=""ReturnTypeParams"" value=""",method.ReturnTypeParams,"""/>",!} 
+	   	  if method.ServerOnly = 1 {write "<tag xmi:id=""",nameMethod,"_GenerateAfter"" name=""GenerateAfter"" value=""",method.GenerateAfter,"""/>",!} 
+	   	  if method.SoapAction '= "[default]" {write "<tag xmi:id=""",nameMethod,"_SoapAction"" name=""SoapAction"" value=""",method.SoapAction,"""/>",!}
+	   	  if method.SoapBindingStyle '= "" {write "<tag xmi:id=""",nameMethod,"_SoapBindingStyle"" name=""SoapBindingStyle"" value=""",method.SoapBindingStyle,"""/>",!}
+	   	  if method.SoapBodyUse '= "" {write "<tag xmi:id=""",nameMethod,"_SoapBodyUse"" name=""SoapBodyUse"" value=""",method.SoapBodyUse,"""/>",!}
+	   	  if method.SoapMessageName '= "" {write "<tag xmi:id=""",nameMethod,"_SoapMessageName"" name=""SoapAction"" value=""",method.SoapMessageName,"""/>",!}
+	   	  if method.SoapNameSpace '= "" {write "<tag xmi:id=""",nameMethod,"_SoapNameSpace"" name=""SoapAction"" value=""",method.SoapNameSpace,"""/>",!}
+	   	  if method.SoapTypeNameSpace '= "" {write "<tag xmi:id=""",nameMethod,"_SoapTypeNameSpace"" name=""SoapAction"" value=""",method.SoapTypeNameSpace,"""/>",!}
+	   	  if method.SqlName '= "" {write "<tag xmi:id=""",nameMethod,"_SqlName"" name=""SoapAction"" value=""",method.SqlName,"""/>",!}
+	   	  if method.SqlProc = 1 {write "<tag xmi:id=""",nameMethod,"_SqlProc"" name=""SqlProc""/>",!}
+	   	  if method.WebMethod=1 {write "<tag xmi:id=""",nameMethod,"_WebMethod"" name=""WebMethod""/>",!}
+	   	  if method.ZenMethod=1 {write "<tag xmi:id=""",nameMethod,"_ZenMethod"" name=""ZenMethod""/>",!}
+	   	  write "</tags>",!
+	   }
+	   
+	   write "</operation>",!
+ 	}
+ 	write "</operations>",!
+ 	}
+ 	write "</element>",!
+ 	}
+ 	
+   Set rs=##class(%ResultSet).%New("%Dictionary.PackageDefinition:SubPackage")
+   Set %sc=rs.Execute(namePackage2)
+   //Set columns=rs.GetColumnCount()
+   set as(index) = 0
+   while (rs.Next(.sc)'=0) {
+	 set as(index) = as(index) + 1
+	 set as(index,"subpackage") = namePackage2
+	 set index = index + 1
+	 if $$$ISOK(sc) { set namePack = namePackage_"_"_rs.GetData(1)}
+	 do elements(namePack,index)
+	 set index = index - 1
+	 set namePackage2 = as(index,"subpackage")
+	 Set rs=##class(%ResultSet).%New("%Dictionary.PackageDefinition:SubPackage")
+     Set %sc=rs.Execute(namePackage2)
+	 for с = 1:1:as(index) {
+     	set vovo = rs.Next(.sc)
+	 }
+   }
+ q
+ //<------------------------------------------
+ //------------------------------------------>
+diagrams(namePackage, index)
+	set namePackage2 =  $$tranPackage(namePackage)
+	write "<diagram xmi:id=""",namePackage2," Diagram"">",!
+	write "<model package=""",namePackage2,"packageId"" owner=""",namePackage2,"packageId""/>",!
+	write "<properties name=""",namePackage2,"""/>",!
+	write "<elements>",!
+	
+	//ЗАПИСЫВАЕМ КЛАССЫ В МАССИВ УКАЗАННОГО ПАКЕТА
+ 	SET myquery = "select Name from %Dictionary.CompiledClass where SqlSchemaName = '"_namePackage_"'"
+	SET tStatement = ##class(%SQL.Statement).%New()
+	SET tStatus = tStatement.%Prepare(myquery)
+	SET rset = tStatement.%Execute()
+	set countClass = 0
+	WHILE rset.%Next() {
+	   set countClass = countClass + 1
+	   set nameClass(countClass) = rset.%GetData(1)
+    }
+    if (countClass '= 0) 
+    {    
+    //СЧИТЫВАЕМ РАЗМЕРЫ КВАДРАТА
+    set countDivClass = countClass\$ZSQR(countClass)
+    set count2Class = countClass\countDivClass*countDivClass
+    set countModClass = countClass#countDivClass
+    //
+    set Top = 100
+    set Bottom = 300
+	for j=1:countDivClass:count2Class {
+	   set Left = 100
+	   set Right = 300
+	   for k=0:1:countDivClass-1{
+ 	   	  set cl=##class(%Dictionary.ClassDefinition).%OpenId(nameClass(j+k))
+	   	  write "<element geometry=""Left=",Left,";Top=",Top,";Right=",Right,";Bottom=",Bottom,";"" subject=""",nameClass(j+k), "Id"" seqno=""",j+k ,"""/>",!
+	      set Left = Left + 250
+	      set Right = Right + 250
+	   }
+	   set Top = Top + 250
+	   set Bottom = Bottom + 250
+	}
+	//ЗАПИСЫВАЕМ ПОСЛЕДНИЙ РЯД
+	set Left = 100
+	set Right = 300
+	if countModClass '= 0 {
+	   for j=1:1:countModClass{
+	   	  set cl=##class(%Dictionary.ClassDefinition).%OpenId(nameClass(count2Class+j))
+	   	  write "<element geometry=""Left=",Left,";Top=",Top,";Right=",Right,";Bottom=",Bottom,";"" subject=""",nameClass(count2Class+j), "Id"" seqno=""",count2Class+j ,"""/>",!
+	   	  set Left = Left + 250
+	      set Right = Right + 250
+	   }
+	}
+    }
+	write "</elements>",!
+	write "</diagram>",!
+   Set rs=##class(%ResultSet).%New("%Dictionary.PackageDefinition:SubPackage")
+   Set %sc=rs.Execute(namePackage2)
+   //Set columns=rs.GetColumnCount()
+   set as(index) = 0
+   while (rs.Next(.sc)'=0) {
+	 set as(index) = as(index) + 1
+	 set as(index,"subpackage") = namePackage2
+	 set index = index + 1
+	 if $$$ISOK(sc) { set namePack = namePackage_"_"_rs.GetData(1)}
+	 do diagrams(namePack,index)
+	 set index = index - 1
+	 set namePackage2 = as(index,"subpackage")
+	 Set rs=##class(%ResultSet).%New("%Dictionary.PackageDefinition:SubPackage")
+     Set %sc=rs.Execute(namePackage2)
+	 for с = 1:1:as(index) {
+     	set vovo = rs.Next(.sc)
+	 }
+   }
+ q
+ //<------------------------------------------ 
+tran(name)
+ q $Tr(name,"ABCDEFGHIJKLMNOPRQSTUVWXYZ","abcdefghijklmnoprqstuvwxyz")
+
+tranPackage(name)
+ q $Tr(name,"_",".")
+ 
+delSim(str)
+ q $Tr(str," +=_-)(*&^$#@!~,<>;:'{}[]\|/`?","")
+ 
+AsciiRus(str)
+ set y = 1
+ set str2 = str
+ for x=1:1:$Length(str){
+	 
+ 	if (($ASCII($Extract(str, x, x))>1039) && ($ASCII($Extract(str, x, x))<1104)) || ($ASCII($Extract(str, x, x))=1025) || ($ASCII($Extract(str, x, x))=1105){
+ 	  set str2 = $Extract(str2, 1, y-1)_"&#"_$ASCII($Extract(str, x, x))_";"_$Extract(str2, y+1,$Length(str2))
+ 	  set y = y + 6
+ 	}
+ 	
+ 	if ($Extract(str, x, x)) = "<" {
+	  set str2 = $Extract(str2, 1, y-1)_"&amp;lt;"_$Extract(str2, y+1,$Length(str2))
+	  set y = y + 7
+	}
+ 	if ($Extract(str, x, x)) = ">" {
+	  set str2 = $Extract(str2, 1, y-1)_"&amp;gt;"_$Extract(str2, y+1,$Length(str2))
+	  set y = y + 7
+	}
+	if ($ASCII($Extract(str, x, x))=13){
+	  set str2 = $Extract(str2, 1, y-1)_"&#xA;"_$Extract(str2, y+2,$Length(str2))
+	  set y = y + 3
+	}
+	if ($Extract(str, x, x) = "&"){
+	  set str2 = $Extract(str2, 1, y-1)_"&amp;amp;"_$Extract(str2, y+1,$Length(str2))
+	  set y = y + 8
+	}
+	if ($Extract(str, x, x) = """"){
+	  set str2 = $Extract(str2, 1, y-1)_"&quot;"_$Extract(str2, y+1,$Length(str2))
+	  set y = y + 5
+	}
+  	if ($Extract(str, x, x) = "№"){
+	  set str2 = $Extract(str2, 1, y-1)_"&#8470;"_$Extract(str2, y+1,$Length(str2))
+	  set y = y + 6
+	}
+	set y = y + 1
+ }
+ q str2
+]]></Implementation>
+</Method>
+</Class>
+
+
+<CSP name="ExportEA.csp" application="/csp/sys/" default="1"><![CDATA[
+<csp:StudioInteractiveTemplate name="Export UML diagram" description = "Export UML class diagrams in Enterprise Architect" mode = "addin" type="cls,mac,int,csp">
+<HTML>
+<HEAD>
+<TITLE>#($$$TextHTML("@Export1@Export UML diagram","UML"))#</TITLE>
+<SCRIPT LANGUAGE="JavaScript">
+function pageOnLoad()
+{
+	var form = self.document.form;
+	var control = form.FILENAME;
+	
+	control.focus();
+	control.select();
+	return true;
+}
+
+function formSubmit()
+{
+	// the form is being submitted;
+	// test if there is a file & package name
+	var form = self.document.form;
+	if (form.FILENAME.value == '') {
+		alert('#($$$TextJS("@Export2@You didn't specify XML-file","UML"))#');
+		return false;
+	}
+	if (form.package.value == '') {
+		alert('#($$$TextJS("@Export3@You didn't specify a package name","UML"))#');
+		return false;
+	}
+	return true;
+}
+</SCRIPT>
+</HEAD>
+<BODY bgcolor="#CC6666" ONLOAD="pageOnLoad();">
+<FORM NAME="form" ACTION="ExportEA2.csp" onsubmit="return formSubmit();">
+<BR>
+<H3>#($$$TextHTML("@Export4@This extension allows you to export packages classes","UML"))# <BR>#($$$TextHTML("@Export5@in Enterprise Architect format xmi 2.1","UML"))#</H3>
+<acronym title ="#($$$TextHTML("@Export6@Enter full path of file to be exported","UML"))#"> #($$$Text("@Export7@Input name file","UML"))# <INPUT TYPE="text" NAME="FILENAME" SIZE="45"></acronym> <p>
+<acronym title ="#($$$TextHTML("@Export8@Indicate name package that will be exported to file","UML"))#"> #($$$TextHTML("@Export9@Input name package(s)","UML"))# <INPUT TYPE="text" NAME="package" SIZE="40"> </acronym> <p>
+<acronym title ="#($$$TextHTML("@Export10@Specify name model, which will contain all packages","UML"))#"> #($$$TextHTML("@Export11@Input name model","UML"))# <INPUT TYPE="text" NAME="model" SIZE="43"> </acronym> <p>
+<acronym title ="#($$$TextHTML("@Export12@Export classes from Cache in xml-file","UML"))#"> <INPUT TYPE="submit" VALUE="Export" NAME="submit"></acronym>
+</FORM>
+</BODY>
+</HTML>]]></CSP>
+
+
+<CSP name="ExportEA2.csp" application="/csp/sys/" default="1"><![CDATA[
+<csp:StudioInteractiveTemplate type="cls,mac,int,csp">
+<HTML>
+<HEAD>
+<BODY bgcolor="#CC6666">
+<FORM NAME="form" ACTION="ExportFinish.csp">
+<acronym title ="#($$$TextHTML("@Export13@Export package(s)","UML"))#"><INPUT TYPE="button" VALUE=" Back " NAME="prev" onclick="javascript:self.document.location='ExportEA.csp';"></acronym>
+&nbsp;
+<acronym title ="#($$$TextHTML("@Export14@Exit program","UML"))#"><INPUT TYPE="submit" VALUE=" Finish " NAME="submit">
+</FORM>
+</BODY>
+<TITLE>Импорт UML диаграмм</TITLE>
+<SCRIPT LANGUAGE="CACHE" RUNAT="SERVER">
+    try{
+	set namespace = $znspace
+	zn "%sys"    
+    set filename = $G(%request.Data("FILENAME",1))
+	set package = $G(%request.Data("package",1))
+	set model = $G(%request.Data("model",1))
+    do ##class(UML.WriterEA).Export(filename,package,model,namespace)
+    zn namespace
+    }
+    catch(sc){ s ^ExportEA=sc.AsStatus()}
+</SCRIPT>
+</HEAD>
+</HTML>]]></CSP>
+
+
+<CSP name="ExportFinish.csp" application="/csp/sys/" default="1"><![CDATA[
+<csp:StudioGenerateTemplate>]]></CSP>
+
+
+<CSP name="ImportEA.csp" application="/csp/sys/" default="1"><![CDATA[
+<csp:StudioInteractiveTemplate name="Import UML diagram" description = "Import UML class diagrams from the Enterprise Architect" mode = "addin" type="cls,mac,int,csp">
+<HTML>
+<HEAD>
+<TITLE>#($$$TextHTML("@Import1@Import UML diagram","UML"))#</TITLE>
+<SCRIPT LANGUAGE="JavaScript">
+
+function pageOnLoad()
+{
+	var form = self.document.form;
+	var control = form.FILENAME;
+
+	control.focus();
+	control.select();
+	return true;
+}
+
+function formSubmit()
+{
+	// the form is being submitted;
+	// test if there is a file & package name
+	var form = self.document.form;
+	if (form.FILENAME.value == '') {
+		alert('#($$$TextJS("@Import2@You didn't choose XML-file","UML"))#');
+		return false;
+	}
+	return true;
+}
+</SCRIPT>
+</HEAD>
+<BODY bgcolor="#CCCCFF" ONLOAD="pageOnLoad();">
+<FORM NAME="form" ACTION="ImportEA2.csp" onsubmit="return formSubmit();">
+<BR>
+<H3>#($$$TextHTML("@Import3@This extension allows you import UML class diagrams","UML"))#, <BR> #($$$TextHTML("@Import4@exported from Enterprise Architect format xmi 2.1.","UML"))#</H3>
+<acronym title ="#($$$TextHTML("@Import5@Enter full path to xml-file on the server","UML"))#"> #($$$TextHTML("@Import6@Input name file","UML"))# <INPUT TYPE="text" NAME="FILENAME" SIZE="40"></acronym> <p>
+<acronym title ="#($$$TextHTML("@Import7@Specify name package, if you want to put the classes in separate package, or leave it blank if you want to use the default package","UML"))#"> #($$$TextHTML("@Import8@Input name package","UML"))# <INPUT TYPE="text" NAME="package" SIZE="34"> </acronym> <p>
+<acronym title ="#($$$TextHTML("@Import9@Import the file to CACHE","UML"))#"><INPUT TYPE="submit" VALUE="Import" NAME="submit"></acronym>
+</FORM>
+</BODY>
+</HTML>]]></CSP>
+
+
+<CSP name="ImportEA2.csp" application="/csp/sys/" default="1"><![CDATA[
+<csp:StudioInteractiveTemplate type="cls,mac,int,csp">
+<HTML>
+<HEAD>
+<BODY bgcolor="#CCCCFF">
+<FORM NAME="form" ACTION="ImportFinish.csp">
+<acronym title ="#($$$TextHTML("@Import10@Import a file","UML"))#"><INPUT TYPE="button" VALUE=" Назад " NAME="prev" onclick="javascript:self.document.location='ImportEA.csp';"></acronym>
+&nbsp;
+<acronym title ="#($$$TextHTML("@Import11@Exit program","UML"))#"><INPUT TYPE="submit" VALUE=" Финиш " NAME="submit"></acronym>
+</FORM>
+</BODY>
+<TITLE>$$$Text(Импорт UML диаграмм)</TITLE>
+<SCRIPT LANGUAGE="CACHE" RUNAT="SERVER">
+    try{
+	set namespace = $znspace
+	zn "%sys"
+    set filename = $G(%request.Data("FILENAME",1))
+	set package = $G(%request.Data("package",1))
+    do ##class(UML.ReaderEA).Import(filename,package,namespace)
+    zn namespace
+    }
+    catch(sc){ s ^ImportEA=sc.AsStatus()}
+</SCRIPT>
+</HEAD>
+</HTML>]]></CSP>
+
+
+<CSP name="ImportFinish.csp" application="/csp/sys/" default="1"><![CDATA[
+<csp:StudioGenerateTemplate>]]></CSP>
+</Export>
