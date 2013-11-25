@@ -1,18 +1,20 @@
-<?xml version="1.0" encoding="UTF-8"?>
+﻿<?xml version="1.0" encoding="UTF-8"?>
 <Export generator="Cache" version="25">
 <Project name="EA02">
   <Items>
-    <ProjectItem name="csp/sys/ImportEA.csp" type="CSP"></ProjectItem>
-    <ProjectItem name="csp/sys/ImportEA2.csp" type="CSP"></ProjectItem>
-    <ProjectItem name="csp/sys/ImportFinish.csp" type="CSP"></ProjectItem>
+    <ProjectItem name="UML.ReaderEA" type="CLS"></ProjectItem>
+    <ProjectItem name="UML.WriterEA" type="CLS"></ProjectItem>
     <ProjectItem name="csp/sys/ExportEA.csp" type="CSP"></ProjectItem>
     <ProjectItem name="csp/sys/ExportEA2.csp" type="CSP"></ProjectItem>
     <ProjectItem name="csp/sys/ExportFinish.csp" type="CSP"></ProjectItem>
-    <ProjectItem name="UML" type="PKG"></ProjectItem>
+    <ProjectItem name="csp/sys/ImportEA.csp" type="CSP"></ProjectItem>
+    <ProjectItem name="csp/sys/ImportEA2.csp" type="CSP"></ProjectItem>
+    <ProjectItem name="csp/sys/ImportFinish.csp" type="CSP"></ProjectItem>
   </Items>
+  <WatchVariables>
+    <WatchVariable Variable="cl" Pane="1"></WatchVariable>
+  </WatchVariables>
 </Project>
-
-
 
 
 <Class name="UML.ReaderEA">
@@ -169,6 +171,14 @@
 			  	if reader.MoveToAttributeName("type") {set par.Type=reader.Value}
 			  	if reader.MoveToAttributeName("default") {set par.Default=reader.Value}
 			  	do cl.Parameters.Insert(par)
+			  	
+			/*set sc=cl.%Save()
+			If $$$ISERR(sc){
+			  w "Класс ParameterDefinition", cl.Name, !
+			  w !
+			  Do $System.Status.DisplayError(sc)
+			  w !,"_________________________________________________________________________________________________________________________________________________________________________________________________________",!
+			}*/
 			  }
 					
 			  //Cчитываем атрибута класса
@@ -222,7 +232,18 @@
 					set par.Name=$piece($piece(reader.Value,";",i),"=",2)
 					set par.Type=$piece($piece(reader.Value,";",i+1),"=",2)
 					set par.Default=$piece($piece(reader.Value,";",i+2),"=",2)
-					do cl.Parameters.Insert(par)
+					if (par.Name '= "")
+					{
+						do cl.Parameters.Insert(par)
+					}
+			/*set sc=cl.%Save()
+			If $$$ISERR(sc){
+			  w "Класс ParameterDefinition2 ", cl.Name, !
+			  w par.Name, " ", par.Type, " ", par.Default, !
+			  w !
+			  Do $System.Status.DisplayError(sc)
+			  w !,"_________________________________________________________________________________________________________________________________________________________________________________________________________",!
+			}*/
 				  }
 			  	}
 			  }
@@ -239,6 +260,14 @@
 				do reader.MoveToAttributeName("scope") if $$tran(reader.Value)="private" set prop.Private=1
 				set prop.parent=cl
 				do cl.Properties.Insert(prop)
+				
+			/*set sc=cl.%Save()
+			If $$$ISERR(sc){
+			  w "Класс PropertyDefinitionATTR", cl.Name, !
+			  w !
+			  Do $System.Status.DisplayError(sc)
+			  w !,"_________________________________________________________________________________________________________________________________________________________________________________________________________",!
+			}*/
 				
 				//
 				set Dep2=reader.Depth
@@ -532,7 +561,9 @@
 			  }		
 			set sc=cl.%Save()
 			If $$$ISERR(sc){
-			  w "Класс ", cl.Name
+			  w "Класс ", cl.Name, !
+			  zwrite cl
+			  w !
 			  Do $System.Status.DisplayError(sc)
 			  w !,"_________________________________________________________________________________________________________________________________________________________________________________________________________",!
 			}
@@ -1022,19 +1053,23 @@ AsciiRus2(str)
  }
  q str2
 deletePackage(str)
+ set str2 = ""
  for x=1:1:$Length(str){
    if ($Extract(str, x, x)) = "." {
 	  set str2 = $Extract(str, x+1,$Length(str))
 	}
  }
+ if (str2 = "") {return str}
  q str2
 
 deleteClass(str)
+ set str2 = ""
  for x=1:1:$Length(str){
    if ($Extract(str, x, x)) = "." {
 	  set str2 = $Extract(str, 1,x-1)
 	}
  }
+ if (str2 = "") {return ""}
  q str2
 ]]></Implementation>
 </Method>
