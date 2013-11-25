@@ -172,13 +172,6 @@
 			  	if reader.MoveToAttributeName("default") {set par.Default=reader.Value}
 			  	do cl.Parameters.Insert(par)
 			  	
-			/*set sc=cl.%Save()
-			If $$$ISERR(sc){
-			  w "Класс ParameterDefinition", cl.Name, !
-			  w !
-			  Do $System.Status.DisplayError(sc)
-			  w !,"_________________________________________________________________________________________________________________________________________________________________________________________________________",!
-			}*/
 			  }
 					
 			  //Cчитываем атрибута класса
@@ -236,14 +229,6 @@
 					{
 						do cl.Parameters.Insert(par)
 					}
-			/*set sc=cl.%Save()
-			If $$$ISERR(sc){
-			  w "Класс ParameterDefinition2 ", cl.Name, !
-			  w par.Name, " ", par.Type, " ", par.Default, !
-			  w !
-			  Do $System.Status.DisplayError(sc)
-			  w !,"_________________________________________________________________________________________________________________________________________________________________________________________________________",!
-			}*/
 				  }
 			  	}
 			  }
@@ -261,15 +246,7 @@
 				set prop.parent=cl
 				do cl.Properties.Insert(prop)
 				
-			/*set sc=cl.%Save()
-			If $$$ISERR(sc){
-			  w "Класс PropertyDefinitionATTR", cl.Name, !
-			  w !
-			  Do $System.Status.DisplayError(sc)
-			  w !,"_________________________________________________________________________________________________________________________________________________________________________________________________________",!
-			}*/
-				
-				//
+		
 				set Dep2=reader.Depth
 				while (reader.Read()&&(reader.Depth'<Dep2)){
 				  //начальное значение атрибута
