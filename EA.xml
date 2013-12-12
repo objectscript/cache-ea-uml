@@ -1,9 +1,8 @@
-﻿<?xml version="1.0" encoding="UTF-8"?>
+<?xml version="1.0" encoding="UTF-8"?>
 <Export generator="Cache" version="25">
-<Project name="EA02">
+<Project name="EA02" LastModified="2013-12-12 17:49:30.597799">
   <Items>
-    <ProjectItem name="UML.ReaderEA" type="CLS"></ProjectItem>
-    <ProjectItem name="UML.WriterEA" type="CLS"></ProjectItem>
+    <ProjectItem name="UML" type="PKG"></ProjectItem>
     <ProjectItem name="csp/sys/ExportEA.csp" type="CSP"></ProjectItem>
     <ProjectItem name="csp/sys/ExportEA2.csp" type="CSP"></ProjectItem>
     <ProjectItem name="csp/sys/ExportFinish.csp" type="CSP"></ProjectItem>
@@ -15,6 +14,8 @@
     <WatchVariable Variable="cl" Pane="1"></WatchVariable>
   </WatchVariables>
 </Project>
+
+
 
 
 <Class name="UML.ReaderEA">
@@ -1492,8 +1493,8 @@ elements(namePackage,index)
  	
  	if (extendsYes = 1) || (cl.IncludeCode '=""){
  	write "<tags>",!
-	if extendsYes = 1 {write "<tag xmi:id=""",nameClass(j),"_Extends"" name=""Extends"" value=""",nameExtends,""" modelElement=""",nameClass(j), "Id""/>",!}
-	if cl.IncludeCode '="" {write "<tag xmi:id=""",nameClass(j),"_IncludeCode"" name=""Include"" value=""",cl.IncludeCode,""" modelElement=""",nameClass(j), "Id""/>",!}
+	if extendsYes = 1 {write "<tag xmi:id=""",nameClass(j),"_Extends"" name=""Extends"" value=""",nameExtends,""" modelElement=""",$Tr(nameClass(j),"""","quot;"), "Id""/>",!}
+	if cl.IncludeCode '="" {write "<tag xmi:id=""",nameClass(j),"_IncludeCode"" name=""Include"" value=""",$Tr(cl.IncludeCode,"""","quot;"),""" modelElement=""",nameClass(j), "Id""/>",!}
 	write "</tags>",!
  	}
  	
@@ -1510,8 +1511,8 @@ elements(namePackage,index)
 	   }
 	   set extended = extended + 2
 	}
-	If extended = 3 {write "<extendedProperties persistence=""Persistent"" parameters=""",Par,"""/>",!}
-	elseif extended = 2 {write "<extendedProperties parameters=""",Par,"""/>",!}
+	If extended = 3 {write "<extendedProperties persistence=""Persistent"" parameters=""",$Tr(Par,"""",""),"""/>",!}
+	elseif extended = 2 {write "<extendedProperties parameters=""",$Tr(Par,"""",""),"""/>",!}
 	elseif extended = 1 {write "<extendedProperties persistence=""Persistent""/>",!}
 	
  	//ЗАПИСЫВАЕМ СВОЙСТВА КЛАССА
@@ -1527,7 +1528,7 @@ elements(namePackage,index)
  	   else {set privateProp = "public"} 
  	   
  	   write "<attribute xmi:idref=""",nameProperty,"PropertyId"" name=""",prop.Name , """ scope=""",privateProp ,""">",!
- 	   if prop.InitialExpression '="""""" {write "<initial body=""",prop.InitialExpression ,"""/>",!} // ПРОВЕРКА НА НАЧАЛЬНОЕ ЗНАЧЕНИЕ
+ 	   if prop.InitialExpression '="""""" {write "<initial body=""",$Tr(prop.InitialExpression,"""","") ,"""/>",!} // ПРОВЕРКА НА НАЧАЛЬНОЕ ЗНАЧЕНИЕ
  	   if prop.Description '="" {write "<documentation value=""",$$AsciiRus(prop.Description),"""/>",!}
  	   if prop.Collection '= "" { //ЯВЛЯЕТСЯ ЛИ КОЛЛЕКЦИЕЙ
 	 	  write "<properties type=""",prop.Type,""" collection=""true""/>",!
@@ -1547,20 +1548,20 @@ elements(namePackage,index)
 	      If prop.Internal = 1 {write "<tag xmi:id=""",nameProperty,"Internal"" name=""Internal""/>",!} //ЗАДАЕМ Internal АТРИБУТА
 	      If prop.MultiDimensional = 1 {write "<tag xmi:id=""",nameProperty,"MultiDimensional"" name=""MultiDimensional""/>",!} //ЗАДАЕМ MultiDimensional АТРИБУТА
 	      If prop.SqlComputed = 1 {write "<tag xmi:id=""",nameProperty,"SqlComputed"" name=""SqlComputed""/>",!} //ЗАДАЕМ SqlComputed АТРИБУТА
-	      if prop.ClientName'="" {write "<tag xmi:id=""",nameProperty,"ClientName"" name=""ClientName"" value=""", $$AsciiRus(prop.ClientName),"""/>",!}
-	      if prop.SqlCollation'="" {write "<tag xmi:id=""",nameProperty,"SqlCollation"" name=""SqlCollation"" value=""", $$AsciiRus(prop.SqlCollation),"""/>",!}
-	      if prop.SqlColumnNumber'="" {write "<tag xmi:id=""",nameProperty,"SqlColumnNumber"" name=""SqlColumnNumber"" value=""", $$AsciiRus(prop.SqlColumnNumber),"""/>",!}
-	      if prop.SqlComputeCode'="" {write "<tag xmi:id=""",nameProperty,"SqlComputeCode"" name=""SqlComputeCode"" value=""", $$AsciiRus(prop.SqlComputeCode),"""/>",!}
-	      if prop.SqlComputeOnChange'="" {write "<tag xmi:id=""",nameProperty,"SqlComputeOnChange"" name=""SqlComputeOnChange"" value=""", $$AsciiRus(prop.SqlComputeOnChange),"""/>",!}
-	      if prop.SqlFieldName'="" {write "<tag xmi:id=""",nameProperty,"SqlFieldName"" name=""ClientName"" SqlFieldName""", $$AsciiRus(prop.SqlFieldName),"""/>",!}
-	      if prop.SqlListDelimiter'="" {write "<tag xmi:id=""",nameProperty,"SqlListDelimiter"" name=""SqlListDelimiter"" value=""", $$AsciiRus(prop.SqlListDelimiter),"""/>",!}
-	      if prop.SqlListType'="" {write "<tag xmi:id=""",nameProperty,"SqlListType"" name=""SqlListType"" value=""", $$AsciiRus(prop.SqlListType),"""/>",!}
-	      if prop.ServerOnly'="" {write "<tag xmi:id=""",nameProperty,"ServerOnly"" name=""ServerOnly"" value=""", $$AsciiRus(prop.ServerOnly),"""/>",!}
+	      if prop.ClientName'="" {write "<tag xmi:id=""",nameProperty,"ClientName"" name=""ClientName"" value=""", $Tr($$AsciiRus(prop.ClientName),"""","quot;"),"""/>",!}
+	      if prop.SqlCollation'="" {write "<tag xmi:id=""",nameProperty,"SqlCollation"" name=""SqlCollation"" value=""", $Tr($$AsciiRus(prop.SqlCollation),"""","quot;"),"""/>",!}
+	      if prop.SqlColumnNumber'="" {write "<tag xmi:id=""",nameProperty,"SqlColumnNumber"" name=""SqlColumnNumber"" value=""", $Tr($$AsciiRus(prop.SqlColumnNumber),"""","quot;"),"""/>",!}
+	      if prop.SqlComputeCode'="" {write "<tag xmi:id=""",nameProperty,"SqlComputeCode"" name=""SqlComputeCode"" value=""", $Tr($$AsciiRus(prop.SqlComputeCode),"""","quot;"),"""/>",!}
+	      if prop.SqlComputeOnChange'="" {write "<tag xmi:id=""",nameProperty,"SqlComputeOnChange"" name=""SqlComputeOnChange"" value=""", $Tr($$AsciiRus(prop.SqlComputeOnChange),"""","quot;"),"""/>",!}
+	      if prop.SqlFieldName'="" {write "<tag xmi:id=""",nameProperty,"SqlFieldName"" name=""ClientName"" SqlFieldName=""", $Tr($$AsciiRus(prop.SqlFieldName),"""","quot;"),"""/>",!}
+	      if prop.SqlListDelimiter'="" {write "<tag xmi:id=""",nameProperty,"SqlListDelimiter"" name=""SqlListDelimiter"" value=""", $Tr($$AsciiRus(prop.SqlListDelimiter),"""","quot;"),"""/>",!}
+	      if prop.SqlListType'="" {write "<tag xmi:id=""",nameProperty,"SqlListType"" name=""SqlListType"" value=""", $Tr($$AsciiRus(prop.SqlListType),"""","quot;"),"""/>",!}
+	      if prop.ServerOnly'="" {write "<tag xmi:id=""",nameProperty,"ServerOnly"" name=""ServerOnly"" value=""", $Tr($$AsciiRus(prop.ServerOnly),"""","quot;"),"""/>",!}
 	      //ПАРАМЕТРЫ СВОЙСТВА КЛАССА
 	      if prop.Parameters.Count()'=0{
 			 s key="" for {
 			 	s param=prop.Parameters.GetNext(.key) Q:key=""
-  			 	write "<tag xmi:id=""",nameProperty,"_Parameter_",key,""" name=""Parameter"" value=""",key,"=",$$AsciiRus(param),"""/>",!
+  			 	write "<tag xmi:id=""",nameProperty,"_Parameter_",key,""" name=""Parameter"" value=""",$Tr(key_"="_$$AsciiRus(param),"""","quot;"),"""/>",!
 			 }
 	      }
 	      write "</tags>",!
@@ -1664,26 +1665,26 @@ elements(namePackage,index)
 	   	  if method.Final=1 {write "<tag xmi:id=""",nameMethod,"_Final"" name=""Final""/>",!}
 	   	  if method.NotInheritable=1 {write "<tag xmi:id=""",nameMethod,"_NotInheritable"" name=""NotInheritable""/>",!}
 	   	  if method.ClientMethod=1 {write "<tag xmi:id=""",nameMethod,"_ClientMethod"" name=""ClientMethod""/>",!}
-	   	  if method.ClientName '="" {write "<tag xmi:id=""",nameMethod,"_ClientName"" name=""ClientName"" value=""",method.ClientName,"""/>",!}
-	   	  if method.CodeMode '="code" {write "<tag xmi:id=""",nameMethod,"_CodeMode"" name=""CodeMode"" value=""",method.CodeMode,"""/>",!} 
-	   	  if method.ExternalProcName '="" {write "<tag xmi:id=""",nameMethod,"_ExternalProcName"" name=""ExternalProcName"" value=""",method.ExternalProcName,"""/>",!}
+	   	  if method.ClientName '="" {write "<tag xmi:id=""",nameMethod,"_ClientName"" name=""ClientName"" value=""",$Tr(method.ClientName,"""","quot;"),"""/>",!}
+	   	  if method.CodeMode '="code" {write "<tag xmi:id=""",nameMethod,"_CodeMode"" name=""CodeMode"" value=""",$Tr(method.CodeMode,"""","quot;"),"""/>",!} 
+	   	  if method.ExternalProcName '="" {write "<tag xmi:id=""",nameMethod,"_ExternalProcName"" name=""ExternalProcName"" value=""",$Tr(method.ExternalProcName,"""","quot;"),"""/>",!}
 	   	  if method.ForceGenerate = 1 {write "<tag xmi:id=""",nameMethod,"_ForceGenerate"" name=""ForceGenerate""/>",!}
-	   	  if method.GenerateAfter '= "" {write "<tag xmi:id=""",nameMethod,"_GenerateAfter"" name=""GenerateAfter"" value=""",method.GenerateAfter,"""/>",!} 
+	   	  if method.GenerateAfter '= "" {write "<tag xmi:id=""",nameMethod,"_GenerateAfter"" name=""GenerateAfter"" value=""",$Tr(method.GenerateAfter,"""","quot;"),"""/>",!} 
 	   	  if method.Internal = 1 {write "<tag xmi:id=""",nameMethod,"_Internal"" name=""Internal""/>",!} 
-	   	  if method.Language '= "" {write "<tag xmi:id=""",nameMethod,"_Language"" name=""Language"" value=""",method.Language,"""/>",!} 
+	   	  if method.Language '= "" {write "<tag xmi:id=""",nameMethod,"_Language"" name=""Language"" value=""",$Tr(method.Language,"""","quot;"),"""/>",!} 
 	   	  if method.NoContext = 1 {write "<tag xmi:id=""",nameMethod,"_NoContext"" name=""NoContext""/>",!} 
-	   	  if method.PlaceAfter '= "" {write "<tag xmi:id=""",nameMethod,"_PlaceAfter"" name=""PlaceAfter"" value=""",method.PlaceAfter,"""/>",!} 
-	   	  if method.PublicList '= "" {write "<tag xmi:id=""",nameMethod,"_PublicList"" name=""PublicList"" value=""",method.PublicList,"""/>",!} 
+	   	  if method.PlaceAfter '= "" {write "<tag xmi:id=""",nameMethod,"_PlaceAfter"" name=""PlaceAfter"" value=""",$Tr(method.PlaceAfter,"""","quot;"),"""/>",!} 
+	   	  if method.PublicList '= "" {write "<tag xmi:id=""",nameMethod,"_PublicList"" name=""PublicList"" value=""",$Tr(method.PublicList,"""","quot;"),"""/>",!} 
 	   	  if method.ReturnResultsets = 1 {write "<tag xmi:id=""",nameMethod,"_ReturnResultsets"" name=""ReturnResultsets""/>",!} 
-	   	  if method.ReturnTypeParams '= "" {write "<tag xmi:id=""",nameMethod,"_ReturnTypeParams"" name=""ReturnTypeParams"" value=""",method.ReturnTypeParams,"""/>",!} 
-	   	  if method.ServerOnly = 1 {write "<tag xmi:id=""",nameMethod,"_GenerateAfter"" name=""GenerateAfter"" value=""",method.GenerateAfter,"""/>",!} 
-	   	  if method.SoapAction '= "[default]" {write "<tag xmi:id=""",nameMethod,"_SoapAction"" name=""SoapAction"" value=""",method.SoapAction,"""/>",!}
-	   	  if method.SoapBindingStyle '= "" {write "<tag xmi:id=""",nameMethod,"_SoapBindingStyle"" name=""SoapBindingStyle"" value=""",method.SoapBindingStyle,"""/>",!}
-	   	  if method.SoapBodyUse '= "" {write "<tag xmi:id=""",nameMethod,"_SoapBodyUse"" name=""SoapBodyUse"" value=""",method.SoapBodyUse,"""/>",!}
-	   	  if method.SoapMessageName '= "" {write "<tag xmi:id=""",nameMethod,"_SoapMessageName"" name=""SoapAction"" value=""",method.SoapMessageName,"""/>",!}
-	   	  if method.SoapNameSpace '= "" {write "<tag xmi:id=""",nameMethod,"_SoapNameSpace"" name=""SoapAction"" value=""",method.SoapNameSpace,"""/>",!}
-	   	  if method.SoapTypeNameSpace '= "" {write "<tag xmi:id=""",nameMethod,"_SoapTypeNameSpace"" name=""SoapAction"" value=""",method.SoapTypeNameSpace,"""/>",!}
-	   	  if method.SqlName '= "" {write "<tag xmi:id=""",nameMethod,"_SqlName"" name=""SoapAction"" value=""",method.SqlName,"""/>",!}
+	   	  if method.ReturnTypeParams '= "" {write "<tag xmi:id=""",nameMethod,"_ReturnTypeParams"" name=""ReturnTypeParams"" value=""",$Tr(method.ReturnTypeParams,"""","quot;"),"""/>",!} 
+	   	  if method.ServerOnly = 1 {write "<tag xmi:id=""",nameMethod,"_GenerateAfter"" name=""GenerateAfter"" value=""",$Tr(method.GenerateAfter,"""","quot;"),"""/>",!} 
+	   	  if method.SoapAction '= "[default]" {write "<tag xmi:id=""",nameMethod,"_SoapAction"" name=""SoapAction"" value=""",$Tr(method.SoapAction,"""","quot;"),"""/>",!}
+	   	  if method.SoapBindingStyle '= "" {write "<tag xmi:id=""",nameMethod,"_SoapBindingStyle"" name=""SoapBindingStyle"" value=""",$Tr(method.SoapBindingStyle,"""","quot;"),"""/>",!}
+	   	  if method.SoapBodyUse '= "" {write "<tag xmi:id=""",nameMethod,"_SoapBodyUse"" name=""SoapBodyUse"" value=""",$Tr(method.SoapBodyUse,"""","quot;"),"""/>",!}
+	   	  if method.SoapMessageName '= "" {write "<tag xmi:id=""",nameMethod,"_SoapMessageName"" name=""SoapAction"" value=""",$Tr(method.SoapMessageName,"""","quot;"),"""/>",!}
+	   	  if method.SoapNameSpace '= "" {write "<tag xmi:id=""",nameMethod,"_SoapNameSpace"" name=""SoapAction"" value=""",$Tr(method.SoapNameSpace,"""","quot;"),"""/>",!}
+	   	  if method.SoapTypeNameSpace '= "" {write "<tag xmi:id=""",nameMethod,"_SoapTypeNameSpace"" name=""SoapAction"" value=""",$Tr(method.SoapTypeNameSpace,"""","quot;"),"""/>",!}
+	   	  if method.SqlName '= "" {write "<tag xmi:id=""",nameMethod,"_SqlName"" name=""SoapAction"" value=""",$Tr(method.SqlName,"""","quot;"),"""/>",!}
 	   	  if method.SqlProc = 1 {write "<tag xmi:id=""",nameMethod,"_SqlProc"" name=""SqlProc""/>",!}
 	   	  if method.WebMethod=1 {write "<tag xmi:id=""",nameMethod,"_WebMethod"" name=""WebMethod""/>",!}
 	   	  if method.ZenMethod=1 {write "<tag xmi:id=""",nameMethod,"_ZenMethod"" name=""ZenMethod""/>",!}
