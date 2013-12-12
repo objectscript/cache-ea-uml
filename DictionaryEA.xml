@@ -1,0 +1,87 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Export generator="Cache" version="25" zv="Cache for Windows (x86-64) 2014.1 (Build 525U)" ts="2013-12-12 15:17:41">
+<Global>
+<Node><Sub>^CacheMsg</Sub>
+<Node><Sub>UML</Sub>
+<Data>ru</Data>
+<Node><Sub>ru</Sub>
+<Node><Sub>Export1</Sub>
+<Data>Export UML diagram</Data>
+</Node>
+<Node><Sub>Export10</Sub>
+<Data>Specify name model, which will contain all packages</Data>
+</Node>
+<Node><Sub>Export11</Sub>
+<Data>Input name model</Data>
+</Node>
+<Node><Sub>Export12</Sub>
+<Data>Export classes from Cache in xml-file</Data>
+</Node>
+<Node><Sub>Export13</Sub>
+<Data>Export package(s)</Data>
+</Node>
+<Node><Sub>Export14</Sub>
+<Data>Exit program</Data>
+</Node>
+<Node><Sub>Export2</Sub>
+<Data>You didn&apos;t specify XML-file</Data>
+</Node>
+<Node><Sub>Export3</Sub>
+<Data>You didn&apos;t specify a package name</Data>
+</Node>
+<Node><Sub>Export4</Sub>
+<Data>This extension allows you to export packages classes</Data>
+</Node>
+<Node><Sub>Export5</Sub>
+<Data>in Enterprise Architect format xmi 2.1</Data>
+</Node>
+<Node><Sub>Export6</Sub>
+<Data>Enter full path of file to be exported</Data>
+</Node>
+<Node><Sub>Export7</Sub>
+<Data>Input name file</Data>
+</Node>
+<Node><Sub>Export8</Sub>
+<Data>Indicate name package that will be exported to file</Data>
+</Node>
+<Node><Sub>Export9</Sub>
+<Data>Input name package(s)</Data>
+</Node>
+<Node><Sub>Import1</Sub>
+<Data>Import UML diagram</Data>
+</Node>
+<Node><Sub>Import10</Sub>
+<Data>Import a file</Data>
+</Node>
+<Node><Sub>Import11</Sub>
+<Data>Exit program</Data>
+</Node>
+<Node><Sub>Import2</Sub>
+<Data>You didn&apos;t choose XML-file</Data>
+</Node>
+<Node><Sub>Import3</Sub>
+<Data>This extension allows you import UML class diagrams</Data>
+</Node>
+<Node><Sub>Import4</Sub>
+<Data>exported from Enterprise Architect format xmi 2.1.</Data>
+</Node>
+<Node><Sub>Import5</Sub>
+<Data>Enter full path to xml-file on the server</Data>
+</Node>
+<Node><Sub>Import6</Sub>
+<Data>Input name file</Data>
+</Node>
+<Node><Sub>Import7</Sub>
+<Data><![CDATA[Specify name package, if you want to put the classes in separate package, or leave it blank if you want to use the default package]]></Data>
+</Node>
+<Node><Sub>Import8</Sub>
+<Data>Input name package</Data>
+</Node>
+<Node><Sub>Import9</Sub>
+<Data>Import the file to CACHE</Data>
+</Node>
+</Node>
+</Node>
+</Node>
+</Global>
+</Export>
