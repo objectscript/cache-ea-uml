@@ -1376,13 +1376,13 @@ subPackage(namePackage,index)
 				    write "</ownedParameter>",!
 		     	  }
 				  else{
-					  set tempName = $Replace(nameMethod,"""","")
-					  set tempPFSN = $Replace(parFormalSpecName,"""","")
+					  set tempName = $$replaceSymbols(nameMethod)
+					  set tempPFSN = $$replaceSymbols(parFormalSpecName)
 					  
 				    write "<ownedParameter xmi:id=""",tempName,"_FormalSpec_",
-				    tempPFSN ,""" name=""", $Replace(parFormalSpecName,"""",""),
+				    tempPFSN ,""" name=""", tempPFSN,
 				    """ direction=""",parFormalSpecKind,
-				    """ type=""EAnone__",$Replace(parFormalSpecType,"""",""),"""/>",!
+				    """ type=""EAnone__",tempPFSN,"""/>",!
 				  }
 				}
  			 }
@@ -1497,8 +1497,8 @@ elements(namePackage,index)
  	
  	if (extendsYes = 1) || (cl.IncludeCode '=""){
  	write "<tags>",!
-	if extendsYes = 1 {write "<tag xmi:id=""",nameClass(j),"_Extends"" name=""Extends"" value=""",nameExtends,""" modelElement=""",$Replace(nameClass(j),"""","&quot;"), "Id""/>",!}
-	if cl.IncludeCode '="" {write "<tag xmi:id=""",nameClass(j),"_IncludeCode"" name=""Include"" value=""",$Replace(cl.IncludeCode,"""","&quot;"),""" modelElement=""",nameClass(j), "Id""/>",!}
+	if extendsYes = 1 {write "<tag xmi:id=""",nameClass(j),"_Extends"" name=""Extends"" value=""",nameExtends,""" modelElement=""",$$replaceSymbols(nameClass(j)), "Id""/>",!}
+	if cl.IncludeCode '="" {write "<tag xmi:id=""",nameClass(j),"_IncludeCode"" name=""Include"" value=""",$$replaceSymbols(cl.IncludeCode),""" modelElement=""",nameClass(j), "Id""/>",!}
 	write "</tags>",!
  	}
  	
@@ -1515,8 +1515,8 @@ elements(namePackage,index)
 	   }
 	   set extended = extended + 2
 	}
-	If extended = 3 {write "<extendedProperties persistence=""Persistent"" parameters=""",$Replace(Par,"""",""),"""/>",!}
-	elseif extended = 2 {write "<extendedProperties parameters=""",$Replace($Replace(Par,"&","&amp;"),"""",""),"""/>",!}
+	If extended = 3 {write "<extendedProperties persistence=""Persistent"" parameters=""",$$replaceSymbols(Par),"""/>",!}
+	elseif extended = 2 {write "<extendedProperties parameters=""",$$replaceSymbols(Par),"""/>",!}
 	elseif extended = 1 {write "<extendedProperties persistence=""Persistent""/>",!}
 	
  	//ЗАПИСЫВАЕМ СВОЙСТВА КЛАССА
@@ -1532,7 +1532,7 @@ elements(namePackage,index)
  	   else {set privateProp = "public"} 
  	   
  	   write "<attribute xmi:idref=""",nameProperty,"PropertyId"" name=""",prop.Name , """ scope=""",privateProp ,""">",!
- 	   if prop.InitialExpression '="""""" {write "<initial body=""",$Replace(prop.InitialExpression,"""","") ,"""/>",!} // ПРОВЕРКА НА НАЧАЛЬНОЕ ЗНАЧЕНИЕ
+ 	   if prop.InitialExpression '="""""" {write "<initial body=""",$$replaceSymbols(prop.InitialExpression) ,"""/>",!} // ПРОВЕРКА НА НАЧАЛЬНОЕ ЗНАЧЕНИЕ
  	   if prop.Description '="" {write "<documentation value=""",$$AsciiRus(prop.Description),"""/>",!}
  	   if prop.Collection '= "" { //ЯВЛЯЕТСЯ ЛИ КОЛЛЕКЦИЕЙ
 	 	  write "<properties type=""",prop.Type,""" collection=""true""/>",!
@@ -1552,20 +1552,20 @@ elements(namePackage,index)
 	      If prop.Internal = 1 {write "<tag xmi:id=""",nameProperty,"Internal"" name=""Internal""/>",!} //ЗАДАЕМ Internal АТРИБУТА
 	      If prop.MultiDimensional = 1 {write "<tag xmi:id=""",nameProperty,"MultiDimensional"" name=""MultiDimensional""/>",!} //ЗАДАЕМ MultiDimensional АТРИБУТА
 	      If prop.SqlComputed = 1 {write "<tag xmi:id=""",nameProperty,"SqlComputed"" name=""SqlComputed""/>",!} //ЗАДАЕМ SqlComputed АТРИБУТА
-	      if prop.ClientName'="" {write "<tag xmi:id=""",nameProperty,"ClientName"" name=""ClientName"" value=""", $Replace($$AsciiRus(prop.ClientName),"""","quot;"),"""/>",!}
-	      if prop.SqlCollation'="" {write "<tag xmi:id=""",nameProperty,"SqlCollation"" name=""SqlCollation"" value=""", $Replace($$AsciiRus(prop.SqlCollation),"""","quot;"),"""/>",!}
-	      if prop.SqlColumnNumber'="" {write "<tag xmi:id=""",nameProperty,"SqlColumnNumber"" name=""SqlColumnNumber"" value=""", $Replace($$AsciiRus(prop.SqlColumnNumber),"""","quot;"),"""/>",!}
-	      if prop.SqlComputeCode'="" {write "<tag xmi:id=""",nameProperty,"SqlComputeCode"" name=""SqlComputeCode"" value=""", $Replace($$AsciiRus(prop.SqlComputeCode),"""","quot;"),"""/>",!}
-	      if prop.SqlComputeOnChange'="" {write "<tag xmi:id=""",nameProperty,"SqlComputeOnChange"" name=""SqlComputeOnChange"" value=""", $Replace($$AsciiRus(prop.SqlComputeOnChange),"""","quot;"),"""/>",!}
-	      if prop.SqlFieldName'="" {write "<tag xmi:id=""",nameProperty,"SqlFieldName"" name=""ClientName"" SqlFieldName=""", $Replace($$AsciiRus(prop.SqlFieldName),"""","quot;"),"""/>",!}
-	      if prop.SqlListDelimiter'="" {write "<tag xmi:id=""",nameProperty,"SqlListDelimiter"" name=""SqlListDelimiter"" value=""", $Replace($$AsciiRus(prop.SqlListDelimiter),"""","quot;"),"""/>",!}
-	      if prop.SqlListType'="" {write "<tag xmi:id=""",nameProperty,"SqlListType"" name=""SqlListType"" value=""", $Replace($$AsciiRus(prop.SqlListType),"""","quot;"),"""/>",!}
-	      if prop.ServerOnly'="" {write "<tag xmi:id=""",nameProperty,"ServerOnly"" name=""ServerOnly"" value=""", $Replace($$AsciiRus(prop.ServerOnly),"""","quot;"),"""/>",!}
+	      if prop.ClientName'="" {write "<tag xmi:id=""",nameProperty,"ClientName"" name=""ClientName"" value=""", $$replaceSymbols($$AsciiRus(prop.ClientName)),"""/>",!}
+	      if prop.SqlCollation'="" {write "<tag xmi:id=""",nameProperty,"SqlCollation"" name=""SqlCollation"" value=""", $$replaceSymbols($$AsciiRus(prop.SqlCollation)),"""/>",!}
+	      if prop.SqlColumnNumber'="" {write "<tag xmi:id=""",nameProperty,"SqlColumnNumber"" name=""SqlColumnNumber"" value=""", $$replaceSymbols($$AsciiRus(prop.SqlColumnNumber)),"""/>",!}
+	      if prop.SqlComputeCode'="" {write "<tag xmi:id=""",nameProperty,"SqlComputeCode"" name=""SqlComputeCode"" value=""", $$replaceSymbols($$AsciiRus(prop.SqlComputeCode)),"""/>",!}
+	      if prop.SqlComputeOnChange'="" {write "<tag xmi:id=""",nameProperty,"SqlComputeOnChange"" name=""SqlComputeOnChange"" value=""", $$replaceSymbols($$AsciiRus(prop.SqlComputeOnChange)),"""/>",!}
+	      if prop.SqlFieldName'="" {write "<tag xmi:id=""",nameProperty,"SqlFieldName"" name=""ClientName"" SqlFieldName=""", $$replaceSymbols($$AsciiRus(prop.SqlFieldName)),"""/>",!}
+	      if prop.SqlListDelimiter'="" {write "<tag xmi:id=""",nameProperty,"SqlListDelimiter"" name=""SqlListDelimiter"" value=""", $$replaceSymbols($$AsciiRus(prop.SqlListDelimiter)),"""/>",!}
+	      if prop.SqlListType'="" {write "<tag xmi:id=""",nameProperty,"SqlListType"" name=""SqlListType"" value=""", $$replaceSymbols($$AsciiRus(prop.SqlListType)),"""/>",!}
+	      if prop.ServerOnly'="" {write "<tag xmi:id=""",nameProperty,"ServerOnly"" name=""ServerOnly"" value=""", $$replaceSymbols($$AsciiRus(prop.ServerOnly)),"""/>",!}
 	      //ПАРАМЕТРЫ СВОЙСТВА КЛАССА
 	      if prop.Parameters.Count()'=0{
 			 s key="" for {
 			 	s param=prop.Parameters.GetNext(.key) Q:key=""
-  			 	write "<tag xmi:id=""",nameProperty,"_Parameter_",key,""" name=""Parameter"" value=""",$Replace(key_"="_$$AsciiRus(param),"""","quot;"),"""/>",!
+  			 	write "<tag xmi:id=""",nameProperty,"_Parameter_",key,""" name=""Parameter"" value=""",$$replaceSymbols(key_"="_$$AsciiRus(param)),"""/>",!
 			 }
 	      }
 	      write "</tags>",!
@@ -1653,8 +1653,8 @@ elements(namePackage,index)
 		  
 		  If (defaultBracket = 0) && (defaultQuotes = 0){
 		  	//if $extract(parFormalSpecDefault,1,1) = """" {set parFormalSpecDefault = $extract(parFormalSpecDefault,2,*-1)}
-			write "<parameter xmi:idref=""",nameMethod,"_FormalSpec_", $Replace(parFormalSpecName,"""",""),""" visibility=""public"">",!
-			write "<properties type=""",$Replace(parFormalSpecType,"""",""),"""/>",!	
+			write "<parameter xmi:idref=""",nameMethod,"_FormalSpec_", $$replaceSymbols(parFormalSpecName),""" visibility=""public"">",!
+			write "<properties type=""",$$replaceSymbols(parFormalSpecType),"""/>",!	
 			  if parFormalSpecDefault '= ""{
 			 	write "<Value body=""",$$AsciiRus(parFormalSpecDefault),"""/>",!
 			  }
@@ -1669,26 +1669,26 @@ elements(namePackage,index)
 	   	  if method.Final=1 {write "<tag xmi:id=""",nameMethod,"_Final"" name=""Final""/>",!}
 	   	  if method.NotInheritable=1 {write "<tag xmi:id=""",nameMethod,"_NotInheritable"" name=""NotInheritable""/>",!}
 	   	  if method.ClientMethod=1 {write "<tag xmi:id=""",nameMethod,"_ClientMethod"" name=""ClientMethod""/>",!}
-	   	  if method.ClientName '="" {write "<tag xmi:id=""",nameMethod,"_ClientName"" name=""ClientName"" value=""",$Replace(method.ClientName,"""","quot;"),"""/>",!}
-	   	  if method.CodeMode '="code" {write "<tag xmi:id=""",nameMethod,"_CodeMode"" name=""CodeMode"" value=""",$Replace(method.CodeMode,"""","quot;"),"""/>",!} 
-	   	  if method.ExternalProcName '="" {write "<tag xmi:id=""",nameMethod,"_ExternalProcName"" name=""ExternalProcName"" value=""",$Replace(method.ExternalProcName,"""","quot;"),"""/>",!}
+	   	  if method.ClientName '="" {write "<tag xmi:id=""",nameMethod,"_ClientName"" name=""ClientName"" value=""",$$replaceSymbols(method.ClientName),"""/>",!}
+	   	  if method.CodeMode '="code" {write "<tag xmi:id=""",nameMethod,"_CodeMode"" name=""CodeMode"" value=""",$$replaceSymbols(method.CodeMode),"""/>",!} 
+	   	  if method.ExternalProcName '="" {write "<tag xmi:id=""",nameMethod,"_ExternalProcName"" name=""ExternalProcName"" value=""",$$replaceSymbols(method.ExternalProcName),"""/>",!}
 	   	  if method.ForceGenerate = 1 {write "<tag xmi:id=""",nameMethod,"_ForceGenerate"" name=""ForceGenerate""/>",!}
-	   	  if method.GenerateAfter '= "" {write "<tag xmi:id=""",nameMethod,"_GenerateAfter"" name=""GenerateAfter"" value=""",$Replace(method.GenerateAfter,"""","quot;"),"""/>",!} 
+	   	  if method.GenerateAfter '= "" {write "<tag xmi:id=""",nameMethod,"_GenerateAfter"" name=""GenerateAfter"" value=""",$$replaceSymbols(method.GenerateAfter),"""/>",!} 
 	   	  if method.Internal = 1 {write "<tag xmi:id=""",nameMethod,"_Internal"" name=""Internal""/>",!} 
-	   	  if method.Language '= "" {write "<tag xmi:id=""",nameMethod,"_Language"" name=""Language"" value=""",$Replace(method.Language,"""","quot;"),"""/>",!} 
+	   	  if method.Language '= "" {write "<tag xmi:id=""",nameMethod,"_Language"" name=""Language"" value=""",$$replaceSymbols(method.Language),"""/>",!} 
 	   	  if method.NoContext = 1 {write "<tag xmi:id=""",nameMethod,"_NoContext"" name=""NoContext""/>",!} 
-	   	  if method.PlaceAfter '= "" {write "<tag xmi:id=""",nameMethod,"_PlaceAfter"" name=""PlaceAfter"" value=""",$Replace(method.PlaceAfter,"""","quot;"),"""/>",!} 
-	   	  if method.PublicList '= "" {write "<tag xmi:id=""",nameMethod,"_PublicList"" name=""PublicList"" value=""",$Replace(method.PublicList,"""","quot;"),"""/>",!} 
+	   	  if method.PlaceAfter '= "" {write "<tag xmi:id=""",nameMethod,"_PlaceAfter"" name=""PlaceAfter"" value=""",$$replaceSymbols(method.PlaceAfter),"""/>",!} 
+	   	  if method.PublicList '= "" {write "<tag xmi:id=""",nameMethod,"_PublicList"" name=""PublicList"" value=""",$$replaceSymbols(method.PublicList),"""/>",!} 
 	   	  if method.ReturnResultsets = 1 {write "<tag xmi:id=""",nameMethod,"_ReturnResultsets"" name=""ReturnResultsets""/>",!} 
-	   	  if method.ReturnTypeParams '= "" {write "<tag xmi:id=""",nameMethod,"_ReturnTypeParams"" name=""ReturnTypeParams"" value=""",$Replace(method.ReturnTypeParams,"""","quot;"),"""/>",!} 
-	   	  if method.ServerOnly = 1 {write "<tag xmi:id=""",nameMethod,"_GenerateAfter"" name=""GenerateAfter"" value=""",$Replace(method.GenerateAfter,"""","quot;"),"""/>",!} 
-	   	  if method.SoapAction '= "[default]" {write "<tag xmi:id=""",nameMethod,"_SoapAction"" name=""SoapAction"" value=""",$Replace(method.SoapAction,"""","quot;"),"""/>",!}
-	   	  if method.SoapBindingStyle '= "" {write "<tag xmi:id=""",nameMethod,"_SoapBindingStyle"" name=""SoapBindingStyle"" value=""",$Replace(method.SoapBindingStyle,"""","quot;"),"""/>",!}
-	   	  if method.SoapBodyUse '= "" {write "<tag xmi:id=""",nameMethod,"_SoapBodyUse"" name=""SoapBodyUse"" value=""",$Replace(method.SoapBodyUse,"""","quot;"),"""/>",!}
-	   	  if method.SoapMessageName '= "" {write "<tag xmi:id=""",nameMethod,"_SoapMessageName"" name=""SoapAction"" value=""",$Replace(method.SoapMessageName,"""","quot;"),"""/>",!}
-	   	  if method.SoapNameSpace '= "" {write "<tag xmi:id=""",nameMethod,"_SoapNameSpace"" name=""SoapAction"" value=""",$Replace(method.SoapNameSpace,"""","quot;"),"""/>",!}
-	   	  if method.SoapTypeNameSpace '= "" {write "<tag xmi:id=""",nameMethod,"_SoapTypeNameSpace"" name=""SoapAction"" value=""",$Replace(method.SoapTypeNameSpace,"""","quot;"),"""/>",!}
-	   	  if method.SqlName '= "" {write "<tag xmi:id=""",nameMethod,"_SqlName"" name=""SoapAction"" value=""",$Replace(method.SqlName,"""","quot;"),"""/>",!}
+	   	  if method.ReturnTypeParams '= "" {write "<tag xmi:id=""",nameMethod,"_ReturnTypeParams"" name=""ReturnTypeParams"" value=""",$$replaceSymbols(method.ReturnTypeParams),"""/>",!} 
+	   	  if method.ServerOnly = 1 {write "<tag xmi:id=""",nameMethod,"_GenerateAfter"" name=""GenerateAfter"" value=""",$$replaceSymbols(method.GenerateAfter),"""/>",!} 
+	   	  if method.SoapAction '= "[default]" {write "<tag xmi:id=""",nameMethod,"_SoapAction"" name=""SoapAction"" value=""",$$replaceSymbols(method.SoapAction),"""/>",!}
+	   	  if method.SoapBindingStyle '= "" {write "<tag xmi:id=""",nameMethod,"_SoapBindingStyle"" name=""SoapBindingStyle"" value=""",$$replaceSymbols(method.SoapBindingStyle),"""/>",!}
+	   	  if method.SoapBodyUse '= "" {write "<tag xmi:id=""",nameMethod,"_SoapBodyUse"" name=""SoapBodyUse"" value=""",$$replaceSymbols(method.SoapBodyUse),"""/>",!}
+	   	  if method.SoapMessageName '= "" {write "<tag xmi:id=""",nameMethod,"_SoapMessageName"" name=""SoapAction"" value=""",$$replaceSymbols(method.SoapMessageName),"""/>",!}
+	   	  if method.SoapNameSpace '= "" {write "<tag xmi:id=""",nameMethod,"_SoapNameSpace"" name=""SoapAction"" value=""",$$replaceSymbols(method.SoapNameSpace),"""/>",!}
+	   	  if method.SoapTypeNameSpace '= "" {write "<tag xmi:id=""",nameMethod,"_SoapTypeNameSpace"" name=""SoapAction"" value=""",$$replaceSymbols(method.SoapTypeNameSpace),"""/>",!}
+	   	  if method.SqlName '= "" {write "<tag xmi:id=""",nameMethod,"_SqlName"" name=""SoapAction"" value=""",$$replaceSymbols(method.SqlName),"""/>",!}
 	   	  if method.SqlProc = 1 {write "<tag xmi:id=""",nameMethod,"_SqlProc"" name=""SqlProc""/>",!}
 	   	  if method.WebMethod=1 {write "<tag xmi:id=""",nameMethod,"_WebMethod"" name=""WebMethod""/>",!}
 	   	  if method.ZenMethod=1 {write "<tag xmi:id=""",nameMethod,"_ZenMethod"" name=""ZenMethod""/>",!}
@@ -1803,6 +1803,13 @@ tranPackage(name)
  
 delSim(str)
  q $Tr(str," +=_-)(*&^$#@!~,<>;:'{}[]\|/`?","")
+ 
+replaceSymbols(str)
+ set str = $Replace(str,"""","&quot;")
+ set str = $Replace(str,"<","&lt;")
+ set str = $Replace(str,">","&gt;")
+ set str = $Replace(str,"&","&amp;")
+ q str
  
 AsciiRus(str)
  set y = 1
